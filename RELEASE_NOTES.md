@@ -1,6 +1,8 @@
 Patchbay: a diagram editor for hardware studio rigs.
 
-**New in 1.4.0:** a File menu. Save to file keeps writing every change to a board file on your computer (Ctrl+S), Open file brings one back (Ctrl+O or drag it in), and Share link packs a board into a link anyone can open as their own copy.
+**New in 1.5.0:** cables route around blocks instead of behind them, leaving and entering square to the side they're attached to, and re-plan live while you drag. Select a cable and drag the white handle on any middle segment to move that part of it; Clear bends returns it to automatic.
+
+**1.4.0:** a File menu. Save to file keeps writing every change to a board file on your computer (Ctrl+S), Open file brings one back (Ctrl+O or drag it in), and Share link packs a board into a link anyone can open as their own copy.
 
 **1.3.0:** sections. Select a block and turn on Section to make it a labelled background area that groups gear; cables pass over it and moving it brings its contents along.
 

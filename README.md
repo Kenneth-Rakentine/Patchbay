@@ -12,7 +12,8 @@ A diagram editor for mapping hardware studio rigs: synths, mixers, aux sends and
 - **Blocks** for each piece of gear: box, rounded, pill, ellipse or plain text, with any fill, outline, text colour, S/M/L text, bold, and left or centred alignment.
 - **Cables** that attach to blocks and follow them when you move things. Drag one of the dots on a block's edge to start a cable and drop it on another block.
 - **Exact connections.** A normal drop snaps to the middle of the nearest side. Hold **Ctrl** while dropping to attach at the exact spot on the edge.
-- **Bends you control.** Select a cable and drag a **＋** handle to add a bend, drag a bend to move it, double-click a bend to remove it. Lines can be straight, elbow (right angles) or curved.
+- **Cables that stay visible.** Elbow cables (the default) route themselves: they leave a block square to the side they're attached to, steer around the blocks in their way, and re-plan live while you drag. Connect to the top of a block from beside it and the cable flips up and over instead of hiding behind it.
+- **Segments you can move.** Select an elbow cable and each middle segment gets a small white handle. Drag it to slide that part of the cable sideways, up or down, around other gear. **Clear bends** in the cable panel hands the route back to automatic. Straight and curved cables use **＋** handles to add bends instead (double-click a bend to remove it).
 - **Named, colour-coded cables.** Give any cable a name (ch.15/16, Aux 2, thru…) in S/M/L, plus colour, thickness, dashes and arrowheads.
 - **Your own cable legend.** Name each cable colour by signal type (Audio, MIDI, USB, ADAT, aux paths…). The legend block lists each name in its own cable colour and updates as you rename colours or add cables.
 - **Sections.** Turn any block into a labelled background area. Cables pass over it, and moving it moves everything inside.
@@ -27,7 +28,9 @@ A diagram editor for mapping hardware studio rigs: synths, mixers, aux sends and
 | --- | --- |
 | Draw a cable | Drag a dot on a block's edge, or use the Wire tool (L) |
 | Place or connect exactly | Hold Ctrl while dragging (skips the grid, attaches at the exact edge point) |
-| Add / move / remove a bend | Drag ＋ on a selected cable / drag the bend / double-click it |
+| Move part of a cable | Select it, then drag a white segment handle (elbow cables) |
+| Back to automatic routing | Clear bends in the cable panel |
+| Add / move / remove a bend (straight and curved cables) | Drag ＋ on a selected cable / drag the bend / double-click it |
 | Duplicate while dragging | Alt + drag |
 | Edit text | Double-click a block (Ctrl+Enter or Esc to finish) |
 | New block | Double-click empty space, or the Block tool (R) |

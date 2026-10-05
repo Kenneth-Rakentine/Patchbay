@@ -110,6 +110,8 @@ button{cursor:pointer;background:none;border:0}
 .h-conn:hover{fill:#fff}
 .h-end{fill:#fff;stroke:var(--accent);cursor:move}
 .h-wp{fill:var(--accent);stroke:#111;cursor:move}
+.h-seg{fill:#fff;stroke:var(--accent)}
+.h-seg:hover{fill:var(--accent)}
 .h-add{fill:#1b1d22;stroke:var(--accent);cursor:copy;opacity:.9}
 .h-add:hover{fill:var(--accent)}
 
@@ -568,7 +570,28 @@ function route(w){
     return {ctrl,segs,pts,curve:true};
   }
   if(w.style!=='elbow'){for(let i=0;i<ctrl.length-1;i++)segs.push([ctrl[i],ctrl[i+1]]);return {ctrl,segs,pts:cleanPts(ctrl)}}
-  const isH=s=>s==='l'||s==='r';let lastH=null;
+  // Elbow: real orthogonal routing. Cables leave and enter blocks square to the side they're attached to
+  // and steer around the blocks at both ends, re-planned on every render.
+  const obsOf=e=>e&&e.node&&N(e.node)?[N(e.node)]:[];
+  const P=w.pts||[];
+  if(!P.length){
+    const r=orthoRoute(a,sa,b,sb,[...obsOf(w.from),...obsOf(w.to)],true);
+    if(r){segs.push(r);return {ctrl,segs,pts:cleanPts(r),auto:true}}
+    return legacyElbow(ctrl,sa,sb);
+  }
+  const first=orthoRoute(a,sa,P[0],null,obsOf(w.from),true),last=orthoRoute(P[P.length-1],null,b,sb,obsOf(w.to),true);
+  if(!first||!last)return legacyElbow(ctrl,sa,sb);
+  segs.push(first);
+  let lastH=dirOf(first[first.length-2]||first[0],first[first.length-1]);lastH=lastH===0||lastH===2;
+  for(let i=0;i<P.length-1;i++){const p=P[i],q=P[i+1];
+    if(Math.abs(p.x-q.x)<.01||Math.abs(p.y-q.y)<.01){segs.push([p,q]);lastH=Math.abs(p.y-q.y)<.01;continue}
+    if(lastH){segs.push([p,{x:p.x,y:q.y},q]);lastH=true}else{segs.push([p,{x:q.x,y:p.y},q]);lastH=false}}
+  segs.push(last);
+  const all=[];segs.forEach((sg,i)=>all.push(...(i?sg.slice(1):sg)));
+  return {ctrl,segs,pts:cleanPts(all)};
+}
+function legacyElbow(ctrl,sa,sb){
+  const segs=[];const isH=s=>s==='l'||s==='r';let lastH=null;
   for(let i=0;i<ctrl.length-1;i++){
     const p=ctrl[i],q=ctrl[i+1];
     const sH=(i===0&&sa)?isH(sa):null, eH=(i===ctrl.length-2&&sb)?isH(sb):null;
@@ -583,8 +606,78 @@ function route(w){
     else{const goH=lastH===null?Math.abs(q.x-p.x)>=Math.abs(q.y-p.y):!lastH;goH?hv():vh()}
     segs.push([p,...mid,q]);
   }
-  const all=[];segs.forEach((s,i)=>all.push(...(i?s.slice(1):s)));
+  const all=[];segs.forEach((sg,i)=>all.push(...(i?sg.slice(1):sg)));
   return {ctrl,segs,pts:cleanPts(all)};
+}
+const DIRV=[[1,0],[0,1],[-1,0],[0,-1]]; // east, south, west, north
+const SIDE_DIR={r:0,b:1,l:2,t:3};
+function dirOf(p,q){const dx=q.x-p.x,dy=q.y-p.y;if(Math.abs(dx)<.01&&Math.abs(dy)<.01)return -1;if(Math.abs(dy)<.01)return dx>0?0:2;if(Math.abs(dx)<.01)return dy>0?1:3;return -2}
+function hitsRects(p,q,rects){
+  const x1=Math.min(p.x,q.x),x2=Math.max(p.x,q.x),y1=Math.min(p.y,q.y),y2=Math.max(p.y,q.y);
+  return rects.some(o=>x2>o.x1+.5&&x1<o.x2-.5&&y2>o.y1+.5&&y1<o.y2-.5);
+}
+// Other blocks near the cable are obstacles too, so a cable never hides behind gear on its way.
+function nearbyBlocks(a,b,ends){
+  const pad=160,x1=Math.min(a.x,b.x)-pad,x2=Math.max(a.x,b.x)+pad,y1=Math.min(a.y,b.y)-pad,y2=Math.max(a.y,b.y)+pad;
+  const out=[...ends];
+  for(const n of B.nodes){if(n.zone||ends.includes(n))continue;if(n.x<x2&&n.x+n.w>x1&&n.y<y2&&n.y+n.h>y1)out.push(n)}
+  return out;
+}
+function orthoRoute(a,sa,b,sb,ends,avoidAll){
+  const tries=[];
+  if(avoidAll){const near=nearbyBlocks(a,b,ends);if(near.length>ends.length)tries.push([near,22,15],[near,10,4])}
+  tries.push([ends,22,15],[ends,10,4]);
+  for(const [blocks,S,M] of tries){const r=orthoTry(a,sa,b,sb,blocks,S,M);if(r)return r}
+  return null;
+}
+function orthoTry(a,sa,b,sb,blocks,S,M){
+  const raw=blocks.map(n=>({x1:n.x,y1:n.y,x2:n.x+n.w,y2:n.y+n.h}));
+  const obs=raw.map(o=>({x1:o.x1-M,y1:o.y1-M,x2:o.x2+M,y2:o.y2+M}));
+  const da=sa?SIDE_DIR[sa]:-1,db=sb?SIDE_DIR[sb]:-1,arrive=db<0?-1:(db+2)%4;
+  // straight shot when the two ends face each other on one line
+  const dd=dirOf(a,b);
+  if(dd>=0&&(da<0||dd===da)&&(arrive<0||dd===arrive)&&!hitsRects(a,b,raw))return [a,b];
+  const a2=da<0?a:{x:a.x+DIRV[da][0]*S,y:a.y+DIRV[da][1]*S};
+  const b2=db<0?b:{x:b.x+DIRV[db][0]*S,y:b.y+DIRV[db][1]*S};
+  const inside=p=>obs.some(o=>p.x>o.x1+.5&&p.x<o.x2-.5&&p.y>o.y1+.5&&p.y<o.y2-.5);
+  if(inside(a2)||inside(b2))return null;
+  const r2=v=>Math.round(v*2)/2;
+  const xs=[a2.x,b2.x,(a2.x+b2.x)/2],ys=[a2.y,b2.y,(a2.y+b2.y)/2];
+  obs.forEach(o=>{xs.push(o.x1,o.x2);ys.push(o.y1,o.y2)});
+  const X=[...new Set(xs.map(r2))].sort((p,q)=>p-q),Y=[...new Set(ys.map(r2))].sort((p,q)=>p-q);
+  const nx=X.length,ny=Y.length,ok=[],MX=r2((a2.x+b2.x)/2),MY=r2((a2.y+b2.y)/2);
+  for(let i=0;i<nx;i++)for(let j=0;j<ny;j++)ok[i*ny+j]=!inside({x:X[i],y:Y[j]});
+  const si=X.indexOf(r2(a2.x)),sj=Y.indexOf(r2(a2.y)),gi=X.indexOf(r2(b2.x)),gj=Y.indexOf(r2(b2.y));
+  if(si<0||sj<0||gi<0||gj<0)return null;
+  const BEND=40,N4=nx*ny*4,dist=new Float64Array(N4).fill(Infinity),prev=new Int32Array(N4).fill(-1),done=new Uint8Array(N4);
+  const hk=[],hv=[];
+  const push=(k,v)=>{hk.push(k);hv.push(v);let i=hk.length-1;while(i>0){const p=(i-1)>>1;if(hv[p]<=hv[i])break;[hk[p],hk[i]]=[hk[i],hk[p]];[hv[p],hv[i]]=[hv[i],hv[p]];i=p}};
+  const pop=()=>{const k=hk[0],v=hv[0],lk=hk.pop(),lv=hv.pop();if(hk.length){hk[0]=lk;hv[0]=lv;let i=0;for(;;){const l=2*i+1,r=l+1;let m=i;if(l<hk.length&&hv[l]<hv[m])m=l;if(r<hk.length&&hv[r]<hv[m])m=r;if(m===i)break;[hk[m],hk[i]]=[hk[i],hk[m]];[hv[m],hv[i]]=[hv[i],hv[m]];i=m}}return [k,v]};
+  // the stub fixes the starting heading; a free start may head anywhere
+  const starts=da<0?[0,1,2,3]:[da];
+  for(const d of starts){const k=(si*ny+sj)*4+d;dist[k]=0;push(k,0)}
+  let best=-1,bestCost=Infinity;
+  while(hk.length){
+    const [u,ud]=pop();
+    if(done[u]||ud>dist[u])continue;
+    if(ud>=bestCost)break;
+    done[u]=1;const node=u>>2,d=u&3,i=Math.floor(node/ny),j=node%ny;
+    if(i===gi&&j===gj){const c=ud+(arrive>=0&&d!==arrive?BEND:0);if(c<bestCost){bestCost=c;best=u}continue}
+    for(let nd=0;nd<4;nd++){
+      if(nd===(d+2)%4)continue;
+      const ii=i+(nd===0?1:nd===2?-1:0),jj=j+(nd===1?1:nd===3?-1:0);
+      if(ii<0||jj<0||ii>=nx||jj>=ny||!ok[ii*ny+jj])continue;
+      const p={x:X[i],y:Y[j]},q={x:X[ii],y:Y[jj]};if(hitsRects(p,q,obs))continue;
+      // turning on the halfway line is preferred, so ties settle into tidy centred Z-shapes
+      const v=(ii*ny+jj)*4+nd,c=ud+Math.abs(q.x-p.x)+Math.abs(q.y-p.y)+(nd!==d?BEND-((nd&1)?(p.x===MX?2:0):(p.y===MY?2:0)):0);
+      if(c<dist[v]){dist[v]=c;prev[v]=u;push(v,c)}
+    }
+  }
+  if(best<0)return null;
+  const path=[];for(let k=best;k>=0;k=prev[k]){const node=k>>2;path.push({x:X[Math.floor(node/ny)],y:Y[node%ny]})}
+  path.reverse();
+  const out=[a];if(da>=0)out.push(a2);out.push(...path);if(db>=0)out.push(b2);out.push(b);
+  return cleanPts(out);
 }
 function pathD(pts,r){
   if(!pts.length)return '';
@@ -692,6 +785,8 @@ function renderAll(){
 }
 function wiresOf(ids){const s=new Set(ids);return B.wires.filter(w=>(w.from.node&&s.has(w.from.node))||(w.to.node&&s.has(w.to.node)))}
 
+// middle segments of a routed elbow cable (not the short legs touching a block) that can be dragged sideways
+function elbowSegs(P){const out=[];for(let k=1;k<P.length-2;k++){const p=P[k],q=P[k+1];const h=Math.abs(p.y-q.y)<.01,v=Math.abs(p.x-q.x)<.01;if((h||v)&&Math.hypot(q.x-p.x,q.y-p.y)>=14)out.push([k,h])}return out}
 function renderOverlay(){
   if(!B)return;
   const z=B.view?B.view.z:1,u=1/z;let s='';
@@ -725,11 +820,14 @@ function renderOverlay(){
       const R=route(w);const h=9*u;
       ['from','to'].forEach(k=>{const p=endPos(w[k]);const att=!!w[k].node;
         s+=`<rect class="h-end" data-h="end" data-wire="${w.id}" data-end="${k}" x="${p.x-h/2}" y="${p.y-h/2}" width="${h}" height="${h}" rx="${att?h/2:1.5*u}" stroke-width="${2*u}"><title>${att?'Attached end: drag to move (Ctrl for exact spot)':'Free end: drag onto a block to attach'}</title></rect>`});
-      if(!R.curve||true){
+      const segsH=w.style==='elbow'?elbowSegs(R.pts):[];
+      segsH.forEach(([k,horiz])=>{const p=R.pts[k],q=R.pts[k+1];const m={x:(p.x+q.x)/2,y:(p.y+q.y)/2};const L=10*u,T=4.5*u;
+        s+=`<rect class="h-seg" data-h="seg" data-wire="${w.id}" data-k="${k}" x="${m.x-(horiz?L:T)}" y="${m.y-(horiz?T:L)}" width="${(horiz?L:T)*2}" height="${(horiz?T:L)*2}" rx="${T}" stroke-width="${1.3*u}" style="cursor:${horiz?'ns':'ew'}-resize"><title>Drag to move this part of the cable</title></rect>`});
+      if(!(w.style==='elbow'&&segsH.length)){
         R.segs.forEach((seg,i)=>{const m=pointAt(seg,.5);
           s+=`<g data-h="add" data-wire="${w.id}" data-i="${i}" style="cursor:copy"><circle class="h-add" cx="${m.x}" cy="${m.y}" r="${5.5*u}" stroke-width="${1.2*u}"/><path d="M${m.x-2.5*u} ${m.y}h${5*u}M${m.x} ${m.y-2.5*u}v${5*u}" stroke="${acc}" stroke-width="${1.3*u}" pointer-events="none"/><title>Drag to add a bend</title></g>`});
       }
-      (w.pts||[]).forEach((p,i)=>{s+=`<circle class="h-wp" data-h="wp" data-wire="${w.id}" data-i="${i}" cx="${p.x}" cy="${p.y}" r="${5*u}" stroke-width="${1.4*u}"><title>Drag to move bend · double-click to remove</title></circle>`});
+      if(w.style!=='elbow')(w.pts||[]).forEach((p,i)=>{s+=`<circle class="h-wp" data-h="wp" data-wire="${w.id}" data-i="${i}" cx="${p.x}" cy="${p.y}" r="${5*u}" stroke-width="${1.4*u}"><title>Drag to move bend · double-click to remove</title></circle>`});
     }
   }
   if(drag&&drag.type==='marquee'&&drag.moved){const r=drag.rect;s+=`<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="${acc}" fill-opacity=".07" stroke="${acc}" stroke-width="${u}" stroke-dasharray="${4*u} ${3*u}" pointer-events="none"/>`}
@@ -786,6 +884,7 @@ svg.addEventListener('pointerdown',e=>{
     if(k==='end'){drag={...base,type:'end',wid:h.dataset.wire,end:h.dataset.end};return}
     if(k==='wp'){drag={...base,type:'wp',wid:h.dataset.wire,i:+h.dataset.i};return}
     if(k==='add'){drag={...base,type:'add',wid:h.dataset.wire,i:+h.dataset.i};return}
+    if(k==='seg'){drag={...base,type:'seg',wid:h.dataset.wire,k:+h.dataset.k};return}
   }
   const lab=e.target.closest('[data-label]');
   if(lab&&tool==='select'){const id=lab.dataset.label;if(!e.shiftKey&&!sel.has(id))selectOnly(id);drag={...base,type:'label',wid:id};renderOverlay();renderInspector();return}
@@ -844,6 +943,10 @@ svg.addEventListener('pointermove',e=>{
   if(!drag.moved){if(Math.hypot(e.clientX-drag.sx,e.clientY-drag.sy)<3)return;drag.moved=true;
     if(drag.type==='move')startMove();
     if(drag.type==='newwire'){const w=makeWire(drag.from,{x:p.x,y:p.y});drag.wid=w.id;drag.type='end';drag.end='to';drag.created=true;sel=new Set([w.id]);hoverNode=null}
+    if(drag.type==='seg'){ // freeze the routed path into bends, then slide the two bends at this segment's ends
+      const w=W(drag.wid);const P=route(w).pts;w.pts=P.slice(1,-1).map(q=>({x:q.x,y:q.y}));
+      drag.i0=drag.k-1;drag.horiz=Math.abs(P[drag.k].y-P[drag.k+1].y)<.01;
+    }
     if(drag.type==='add'){const w=W(drag.wid);w.pts=w.pts||[];w.pts.splice(drag.i,0,{x:p.x,y:p.y});drag.type='wp';}
     if(drag.type==='create'){const t=tool==='text'?'text':tool==='ellipse'?'ellipse':last.nodeType;const n=makeNode(t,snapv(drag.p0.x),snapv(drag.p0.y),GRID,GRID);drag.nid=n.id;sel=new Set([n.id]);renderNode(n)}
   }
@@ -871,6 +974,8 @@ svg.addEventListener('pointermove',e=>{
       else{w[drag.end]={x:sv(p.x),y:sv(p.y)};drag.target=null;drag.preview=null}
       renderWire(w);renderOverlay();break;
     }
+    case 'seg':{const w=W(drag.wid);const i=drag.i0,v=drag.horiz?sv(p.y):sv(p.x);
+      [i,i+1].forEach(j=>{if(w.pts[j]){if(drag.horiz)w.pts[j].y=v;else w.pts[j].x=v}});renderWire(w);renderOverlay();break}
     case 'wp':{const w=W(drag.wid);w.pts[drag.i]={x:sv(p.x),y:sv(p.y)};renderWire(w);renderOverlay();break}
     case 'label':{const w=W(drag.wid);w.labelPos=nearestT(route(w).pts,p);renderWire(w);break}
     case 'create':{
@@ -902,6 +1007,7 @@ function endDrag(e){
     if(d.type==='marquee'){sel=new Set(d.keep);}
     renderOverlay();renderInspector();return;
   }
+  if(d.type==='seg'){const w=W(d.wid);if(w){const a=endPos(w.from),b=endPos(w.to);w.pts=cleanPts([a,...w.pts,b]).slice(1,-1)}}
   if(d.type==='end'){
     const w=W(d.wid);
     if(d.created){const a=endPos(w.from),b=endPos(w.to);if(Math.hypot(a.x-b.x,a.y-b.y)<6){B.wires=B.wires.filter(x=>x!==w);reindex();sel.clear()}}

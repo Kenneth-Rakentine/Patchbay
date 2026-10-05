@@ -1,7 +1,7 @@
 {
   "name": "patchbay",
   "productName": "Patchbay",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Signal-flow diagram editor for hardware studio rigs.",
   "author": "Kenneth Rakentine",
   "license": "MIT",
