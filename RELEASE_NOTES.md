@@ -1,6 +1,8 @@
 Patchbay: a diagram editor for hardware studio rigs.
 
-**New in 1.2.0:** the legend block shows each cable name in its own cable colour and updates live. Use Insert legend block (Board panel) to add one.
+**New in 1.3.0:** sections. Select a block and turn on Section to make it a labelled background area that groups gear; cables pass over it and moving it brings its contents along.
+
+**1.2.0:** the legend block shows each cable name in its own cable colour and updates live. Use Insert legend block (Board panel) to add one.
 
 **1.1.0:** import Whimsical diagrams. Copy as SVG in Whimsical, then press Ctrl+V on the Patchbay canvas.
 

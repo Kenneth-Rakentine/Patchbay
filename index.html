@@ -208,6 +208,7 @@ input[type=color]{width:24px;height:22px;padding:0;border:1px solid var(--line);
         <rect id="bgRect" width="100%" height="100%" fill="#1b1d22"/>
         <rect id="gridRect" width="100%" height="100%" fill="url(#dots)"/>
         <g id="world">
+          <g id="zones"></g>
           <g id="wires"></g>
           <g id="nodes"></g>
           <g id="over"></g>
@@ -316,7 +317,7 @@ const last={wireColor:'#9aa3ad',wireStyle:'elbow',fill:'#b3122e',nodeType:'round
 const nodeEls=new Map(), wireEls=new Map();
 let nmap=new Map(), wmap=new Map();
 
-const svg=$('#svg'), world=$('#world'), wiresL=$('#wires'), nodesL=$('#nodes'), overL=$('#over'), insp=$('#insp');
+const svg=$('#svg'), world=$('#world'), zonesL=$('#zones'), wiresL=$('#wires'), nodesL=$('#nodes'), overL=$('#over'), insp=$('#insp');
 
 function H(){if(!hist.has(B.id))hist.set(B.id,{u:[],r:[]});return hist.get(B.id)}
 function reindex(){nmap=new Map(B.nodes.map(n=>[n.id,n]));wmap=new Map(B.wires.map(w=>[w.id,w]))}
@@ -387,7 +388,7 @@ function openBoard(id){
   store.active=id;B=store.boards.find(b=>b.id===id);
   if(!B.legend)B.legend=Object.fromEntries(WIRE_COLORS.map(c=>[c[0],c[1]]));
   sel.clear();hoverNode=null;
-  nodeEls.clear();wireEls.clear();nodesL.innerHTML='';wiresL.innerHTML='';
+  nodeEls.clear();wireEls.clear();nodesL.innerHTML='';wiresL.innerHTML='';zonesL.innerHTML='';
   $('#boardName').value=B.name;
   applyBoardLook();
   renderAll();
@@ -502,8 +503,8 @@ function attachTo(n,p,exact){
   if(m===d[0])fx=0;else if(m===d[1])fx=1;else if(m===d[2])fy=0;else fy=1;
   return {node:n.id,fx,fy};
 }
-function nodeAt(p,margin=0,exclude=null){
-  for(let i=B.nodes.length-1;i>=0;i--){const n=B.nodes[i];if(n.id===exclude)continue;
+function nodeAt(p,margin=0,exclude=null,skipZones=false){
+  for(let i=B.nodes.length-1;i>=0;i--){const n=B.nodes[i];if(n.id===exclude||(skipZones&&n.zone))continue;
     if(p.x>=n.x-margin&&p.x<=n.x+n.w+margin&&p.y>=n.y-margin&&p.y<=n.y+n.h+margin)return n}
   return null;
 }
@@ -616,7 +617,7 @@ function nodeMarkup(n){
   if(n.type==='ellipse')shape=`<ellipse class="shp" cx="${n.x+n.w/2}" cy="${n.y+n.h/2}" rx="${n.w/2}" ry="${n.h/2}" fill="${fill}" stroke="${st}" stroke-width="${sw}"/>`;
   else{const r=n.type==='rect'?2:n.type==='pill'?Math.min(n.w,n.h)/2:n.type==='text'?2:8;shape=`<rect class="shp" x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}" rx="${r}" fill="${fill}" stroke="${st}" stroke-width="${sw}"/>`}
   const al=n.align==='left'?'left':'center';
-  return shape+`<foreignObject x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}"><div xmlns="http://www.w3.org/1999/xhtml" class="nt" style="justify-content:${al==='left'?'flex-start':'center'}"><div class="tx" style="font-size:${fs}px;color:${n.textColor||'#fff'};font-weight:${n.bold?700:500};text-align:${al}">${esc(n.text||'')}</div></div></foreignObject>`;
+  return shape+`<foreignObject x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}"><div xmlns="http://www.w3.org/1999/xhtml" class="nt" style="justify-content:${al==='left'?'flex-start':'center'}${n.zone?';align-items:flex-start;padding:10px 14px':''}"><div class="tx" style="font-size:${fs}px;color:${n.textColor||'#fff'};font-weight:${n.bold?700:500};text-align:${al}">${esc(n.text||'')}</div></div></foreignObject>`;
 }
 function arrowHead(pts,start,col,sw){
   let a,b;
@@ -643,7 +644,9 @@ function wireMarkup(w){
 function renderNode(n){
   if(!n)return;
   let g=nodeEls.get(n.id);
-  if(!g){g=document.createElementNS('http://www.w3.org/2000/svg','g');g.dataset.node=n.id;nodesL.appendChild(g);nodeEls.set(n.id,g)}
+  const layer=n.zone?zonesL:nodesL;
+  if(!g){g=document.createElementNS('http://www.w3.org/2000/svg','g');g.dataset.node=n.id;layer.appendChild(g);nodeEls.set(n.id,g)}
+  else if(g.parentNode!==layer)layer.appendChild(g);
   if(editing===n.id)return;
   g.innerHTML=nodeMarkup(n);
 }
@@ -658,7 +661,7 @@ function renderAll(){
   for(const [id,g] of nodeEls)if(!nmap.has(id)){g.remove();nodeEls.delete(id)}
   for(const [id,g] of wireEls)if(!wmap.has(id)){g.remove();wireEls.delete(id)}
   B.wires.forEach(w=>{renderWire(w);wiresL.appendChild(wireEls.get(w.id))});
-  B.nodes.forEach(n=>{renderNode(n);nodesL.appendChild(nodeEls.get(n.id))});
+  B.nodes.forEach(n=>{renderNode(n);(n.zone?zonesL:nodesL).appendChild(nodeEls.get(n.id))});
   for(const id of [...sel])if(!nmap.has(id)&&!wmap.has(id))sel.delete(id);
   renderOverlay();
 }
@@ -762,7 +765,7 @@ svg.addEventListener('pointerdown',e=>{
   const lab=e.target.closest('[data-label]');
   if(lab&&tool==='select'){const id=lab.dataset.label;if(!e.shiftKey&&!sel.has(id))selectOnly(id);drag={...base,type:'label',wid:id};renderOverlay();renderInspector();return}
   const ng=e.target.closest('[data-node]');
-  if(ng&&tool==='wire'){const n=N(ng.dataset.node);drag={...base,type:'newwire',from:attachTo(n,p,ctrl)};return}
+  if(ng&&tool==='wire'&&!N(ng.dataset.node).zone){const n=N(ng.dataset.node);drag={...base,type:'newwire',from:attachTo(n,p,ctrl)};return}
   if(ng&&tool==='select'){
     const id=ng.dataset.node;
     if(e.shiftKey){sel.has(id)?sel.delete(id):sel.add(id);renderOverlay();renderInspector();drag=null;return}
@@ -790,6 +793,7 @@ function startMove(){
     const ids=duplicateSelection(0,true);sel=new Set(ids);
   }
   const ns=[...sel].map(N).filter(Boolean);
+  for(const z of ns.filter(n=>n.zone)){for(const o of B.nodes){if(o!==z&&!ns.includes(o)&&o.x>=z.x&&o.y>=z.y&&o.x+o.w<=z.x+z.w&&o.y+o.h<=z.y+z.h)ns.push(o)}}
   const nids=new Set(ns.map(n=>n.id));
   const selW=new Set([...sel].filter(id=>wmap.has(id)));
   const touched=wiresOf(nids);
@@ -805,7 +809,7 @@ svg.addEventListener('pointermove',e=>{
   const p=toWorld(e);
   if(!drag){
     if(tool==='select'||tool==='wire'){
-      const z=B.view.z;let t=nodeAt(p,16/z);
+      const z=B.view.z;let t=nodeAt(p,16/z,null,true);
       if(e.target.closest&&e.target.closest('[data-h="conn"]'))t=N(e.target.closest('[data-h="conn"]').dataset.node);
       const id=t?t.id:null;if(id!==hoverNode){hoverNode=id;renderOverlay()}
     }
@@ -837,7 +841,7 @@ svg.addEventListener('pointermove',e=>{
     }
     case 'end':{
       const w=W(drag.wid);const other=drag.end==='to'?w.from:w.to;
-      const t=nodeAt(p,6/B.view.z,other.node||null);
+      const t=nodeAt(p,6/B.view.z,other.node||null,true);
       if(t){const a=attachTo(t,p,ctrl);w[drag.end]=a;drag.target=t.id;drag.preview=endPos(a)}
       else{w[drag.end]={x:sv(p.x),y:sv(p.y)};drag.target=null;drag.preview=null}
       renderWire(w);renderOverlay();break;
@@ -998,6 +1002,7 @@ function nodePanel(ns){
   <div class="row"><span class="lbl">Outline</span><div class="sws">${OUTLINES.map(f=>swatch('stroke',f,(n.stroke||'none')===f,f==='none'?'No outline':f)).join('')}</div></div>
   <div class="row"><span class="lbl">Text</span><div class="sws">${TEXTS.map(f=>swatch('tcolor',f,n.textColor===f)).join('')}</div></div>
   <div class="row">${seg('fsize',[['s','S','Small'],['m','M','Medium'],['l','L','Large']],n.fontSize||'m')}${seg('bold',[['1','<b>B</b>','Bold']],n.bold?'1':'')}${seg('align',[['left','≡','Align left'],['center','☰','Center']],n.align||'center')}</div>
+  ${isLeg?'':`<div class="row">${seg('zone',[['1','Section']],n.zone?'1':'')}<span class="hint" style="flex:1;min-width:120px">A section is a background area: cables pass over it, and moving it moves what's inside.</span></div>`}
   <div class="row"><button class="btn" data-act="front">Bring to front</button><button class="btn" data-act="back">Send to back</button></div>
   </div>`;
 }
@@ -1058,6 +1063,7 @@ insp.addEventListener('click',e=>{
     case 'fsize':mutate(()=>ns().forEach(n=>n.fontSize=v));break;
     case 'bold':{const on=!ns()[0].bold;mutate(()=>ns().forEach(n=>n.bold=on));break}
     case 'align':mutate(()=>ns().forEach(n=>n.align=v));break;
+    case 'zone':{const on=!ns()[0].zone;mutate(()=>{ns().forEach(n=>{n.zone=on;if(on){n.align='left'}});if(on){const s2=new Set(ns().map(n=>n.id));B.nodes=[...B.nodes.filter(n=>s2.has(n.id)),...B.nodes.filter(n=>!s2.has(n.id))]}});break}
     case 'front':mutate(()=>{const s=new Set(ns().map(n=>n.id));B.nodes=[...B.nodes.filter(n=>!s.has(n.id)),...B.nodes.filter(n=>s.has(n.id))]});break;
     case 'back':mutate(()=>{const s=new Set(ns().map(n=>n.id));B.nodes=[...B.nodes.filter(n=>s.has(n.id)),...B.nodes.filter(n=>!s.has(n.id))]});break;
     case 'wcolor':last.wireColor=v;mutate(()=>ws().forEach(w=>w.color=v));break;
@@ -1136,7 +1142,7 @@ function nodeExportMarkup(n){
   if(!n.text)return shape;
   const fs=NODE_FS[n.fontSize||'m'],wt=n.bold?700:500,left=n.align==='left';
   const lines=wrapLines(n.text,fs,wt,Math.max(10,n.w-16));const lh=fs*1.2;
-  const y0=n.y+n.h/2-(lines.length-1)*lh/2;const x=left?n.x+8:n.x+n.w/2;
+  const y0=n.zone?n.y+10+lh/2:n.y+n.h/2-(lines.length-1)*lh/2;const x=left?n.x+(n.zone?14:8):n.x+n.w/2;
   const tsp=lines.map((l,i)=>`<tspan x="${x.toFixed(1)}" y="${(y0+i*lh).toFixed(1)}">${esc(l)||' '}</tspan>`).join('');
   return shape+`<text font-family='${EXPORT_FONT}' font-size="${fs}" font-weight="${wt}" fill="${n.textColor||'#fff'}" text-anchor="${left?'start':'middle'}" dominant-baseline="central">${tsp}</text>`;
 }
@@ -1144,8 +1150,9 @@ function buildExportSVG(){
   const bb=contentBox();if(!bb)return null;
   const pad=40,x=bb.x-pad,y=bb.y-pad,w=Math.ceil(bb.w+pad*2),h=Math.ceil(bb.h+pad*2);
   const wires=B.wires.map(wv=>wireMarkup(wv).replace(/<path class="whit"[^>]*\/>/,'').replace(/ class="wvis"/g,'').replace(/ class="wlab" data-label="[^"]*"/g,'')).join('');
-  const nodes=B.nodes.map(nodeExportMarkup).join('');
-  return {w,h,svg:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x} ${y} ${w} ${h}" width="${w}" height="${h}"><rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${B.bg}"/>${wires}${nodes}</svg>`};
+  const zones=B.nodes.filter(n=>n.zone).map(nodeExportMarkup).join('');
+  const nodes=B.nodes.filter(n=>!n.zone).map(nodeExportMarkup).join('');
+  return {w,h,svg:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x} ${y} ${w} ${h}" width="${w}" height="${h}"><rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${B.bg}"/>${zones}${wires}${nodes}</svg>`};
 }
 const fileBase=()=>(B.name||'board').replace(/[^\w\- ]+/g,'-').trim()||'board';
 function renderPNG(){
