@@ -35,6 +35,7 @@ A diagram editor for mapping hardware studio rigs: synths, mixers, aux sends and
 | Pan / zoom | Space + drag or middle mouse / Ctrl + scroll wheel |
 | Copy, paste, duplicate | Ctrl+C, Ctrl+V, Ctrl+D |
 | Undo / redo | Ctrl+Z / Ctrl+Shift+Z |
+| Save to file / open a file | Ctrl+S / Ctrl+O (or the File button, top right) |
 | Fit the board on screen | Shift+1 |
 | Tools | V select, H pan, R block, O ellipse, T text, L wire |
 
@@ -51,10 +52,34 @@ It works with most diagram SVGs, not only Whimsical's. Text that was exported as
 
 No account needed. Your boards save automatically in the browser (or desktop app) you're using, and nobody else can see them.
 
-- **Save to file** (File menu or Ctrl+S) writes the board to a `.patchbay.json` file on your computer. In Chrome, Edge and the desktop app, every change after that saves to the same file automatically, so keeping it in a Dropbox, Google Drive or OneDrive folder gives you the board on every computer. Other browsers download a copy instead.
-- **Open file** (Ctrl+O, or drag a board file onto the window) brings a board back. Reopening a board you already have replaces it, and Ctrl+Z restores the previous version.
-- **Share link** packs the whole board into a link. Whoever opens it gets their own copy to edit; nothing is uploaded anywhere. Big boards make long links, so if a forum cuts one off, share the board file instead.
-- **Backup & import** saves or restores every board at once.
+Everything below lives in the **File** button: the page icon at the top right of the screen, just left of the picture icon (Export PNG).
+
+![The File button at the top right, with its menu open: Save to file, Save as new file, Open file, Share link](docs/file-menu.png)
+
+### Save a board to a file
+
+1. Click the **File** button (page icon, top right) and choose **Save to file…**, or press **Ctrl+S**.
+2. Pick where to save it. The file is named after the board, like `Current Setup.patchbay.json`.
+3. That's it. In Chrome, Edge and the desktop app, every change after that saves to the same file automatically, and the bottom-left corner shows **Saving to** and the file name. Keep the file in a Dropbox, Google Drive or OneDrive folder and you'll have the board on every computer.
+
+Firefox and Safari download a copy each time you save instead.
+
+After you restart the browser, Chrome asks once before Patchbay may write to the file again. Click **Resume saving to…** in the bottom-left corner to turn it back on. **Save as new file…** (Ctrl+Shift+S) starts a separate file, and **Stop saving to this file** keeps the board in the browser only.
+
+### Open a board file
+
+1. Click the **File** button and choose **Open file…**, or press **Ctrl+O**.
+2. Pick a `.patchbay.json` file.
+
+You can also drag a board file straight onto the Patchbay window. If you open a board you already have, the file replaces it, and **Ctrl+Z** brings back what was there.
+
+### Share a board as a link
+
+Click the **File** button, choose **Share link…**, then **Copy link**. Whoever opens the link gets their own copy of the board to edit. Nothing is uploaded anywhere: the whole board is packed into the link. Big boards make long links, so if a forum cuts one off, share the board file instead.
+
+### Back up everything
+
+**Backup & import** (bottom left, under the board list) saves or restores all your boards at once.
 
 The website, the desktop app and each browser keep separate boards, so use a board file or a backup to move between them.
 
