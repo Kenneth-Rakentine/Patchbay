@@ -1,5 +1,7 @@
 Patchbay: a diagram editor for hardware studio rigs.
 
+**New in 1.1.0:** import Whimsical diagrams. Copy as SVG in Whimsical, then press Ctrl+V on the Patchbay canvas.
+
 **Downloads**
 - `Patchbay-Setup-*.exe`: Windows installer
 - `Patchbay-Portable-*.exe`: runs without installing

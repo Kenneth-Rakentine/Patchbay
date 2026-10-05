@@ -226,6 +226,15 @@ input[type=color]{width:24px;height:22px;padding:0;border:1px solid var(--line);
       <button class="btn" id="dlSvg">Download board as .svg</button><button class="btn" id="dlPng">Download board as .png</button>
     </div>
     <p class="hint" id="dlNote" style="margin-top:8px" hidden>File downloads (.json, .svg, .png) appear when you run Patchbay from your own copy or GitHub Pages. Here, use Copy backup and paste it into a text file.</p>
+    <h4>Import from Whimsical</h4>
+    <p class="hint" style="margin:0 0 8px">In Whimsical, select everything on the board (Ctrl+A), right-click and choose <b>Copy as SVG</b>. Then press Ctrl+V anywhere on the Patchbay canvas, or paste it here. It comes in as a new board, so nothing you have is touched.</p>
+    <textarea id="svgText" placeholder="Paste the SVG copied from Whimsical" spellcheck="false"></textarea>
+    <div class="mrow">
+      <label class="btn" for="svgFile" style="cursor:pointer">Choose .svg file</label>
+      <input type="file" id="svgFile" accept=".svg,image/svg+xml" hidden>
+      <button class="btn pri" id="doSvgImport">Import diagram</button>
+    </div>
+    <p class="hint" id="svgMsg"></p>
     <h4>Import boards</h4>
     <textarea id="importText" placeholder="Paste a Patchbay backup here" spellcheck="false"></textarea>
     <div class="mrow">
@@ -1145,6 +1154,210 @@ $('#importFile').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new
 
 let toastT=null;
 function toast(msg){const t=$('#toast');t.textContent=msg;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,1800)}
+
+/* ================= import: Whimsical "Copy as SVG" (works with most diagram SVGs) */
+function cssColorToHex(c){
+  if(!c||c==='none'||c.startsWith('url')||c==='transparent')return null;
+  const m=c.match(/rgba?\(([^)]+)\)/);
+  if(m){const p=m[1].split(/[\s,/]+/).filter(Boolean).map(parseFloat);if(p.length>3&&p[3]<=0.02)return null;return '#'+p.slice(0,3).map(v=>clamp(Math.round(v),0,255).toString(16).padStart(2,'0')).join('')}
+  if(c[0]==='#'){if(c.length===4)return '#'+[...c.slice(1)].map(x=>x+x).join('').toLowerCase();return c.slice(0,7).toLowerCase()}
+  mctx.fillStyle='#000';mctx.fillStyle=c;const v=mctx.fillStyle;return v.startsWith('#')?v:null;
+}
+const rgbOf=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
+const cdist=(a,b)=>{const x=rgbOf(a),y=rgbOf(b);return Math.hypot(x[0]-y[0],x[1]-y[1],x[2]-y[2])};
+function snapWireColor(h){let best=null,bd=1e9;for(const [hex] of WIRE_COLORS){const d=cdist(h,hex);if(d<bd){bd=d;best=hex}}return bd<70?best:h}
+function rdp(pts,eps){
+  if(pts.length<3)return pts;
+  let idx=0,dm=0;const a=pts[0],b=pts[pts.length-1];const L=Math.hypot(b.x-a.x,b.y-a.y)||1;
+  for(let i=1;i<pts.length-1;i++){const p=pts[i];const d=L<1e-6?Math.hypot(p.x-a.x,p.y-a.y):Math.abs((b.x-a.x)*(a.y-p.y)-(a.x-p.x)*(b.y-a.y))/L;if(d>dm){dm=d;idx=i}}
+  if(dm>eps){const l=rdp(pts.slice(0,idx+1),eps),r=rdp(pts.slice(idx),eps);return [...l.slice(0,-1),...r]}
+  return [a,b];
+}
+function squareCorners(pts){
+  // A rounded elbow comes out of simplification as two close points; merge them into one right-angle corner.
+  const axis=(a,b)=>{const dx=Math.abs(b.x-a.x),dy=Math.abs(b.y-a.y);return dx>dy*4?'h':dy>dx*4?'v':null};
+  let p=pts.slice();
+  for(let i=1;i<p.length-2;i++){
+    const a=p[i-1],b=p[i],c=p[i+1],d=p[i+2];
+    if(Math.hypot(c.x-b.x,c.y-b.y)>18)continue;
+    const s1=axis(a,b),s2=axis(c,d);
+    if(s1&&s2&&s1!==s2){const corner=s1==='h'?{x:c.x,y:b.y}:{x:b.x,y:c.y};p.splice(i,2,corner)}
+  }
+  return p;
+}
+function distToPoly(p,pts){let best=Infinity;for(let i=1;i<pts.length;i++){const a=pts[i-1],b=pts[i];const dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy;const k=l2?clamp(((p.x-a.x)*dx+(p.y-a.y)*dy)/l2,0,1):0;best=Math.min(best,Math.hypot(p.x-a.x-dx*k,p.y-a.y-dy*k))}return best}
+
+function importSVG(text){
+  const i=text.indexOf('<svg');if(i<0)throw new Error('There is no SVG in what you pasted.');
+  text=text.slice(i,text.lastIndexOf('</svg>')+6);
+  const doc=new DOMParser().parseFromString(text,'image/svg+xml');
+  if(doc.querySelector('parsererror')||doc.documentElement.nodeName.toLowerCase()!=='svg')throw new Error('That SVG could not be read. Copy it again from Whimsical and paste the whole thing.');
+  doc.querySelectorAll('script').forEach(s=>s.remove());
+  doc.querySelectorAll('*').forEach(el=>{for(const a of [...el.attributes])if(/^on/i.test(a.name))el.removeAttribute(a.name)});
+  const host=document.createElement('div');
+  host.style.cssText='position:fixed;left:-30000px;top:0;width:20000px;height:20000px;opacity:0;pointer-events:none;overflow:hidden';
+  const root=document.importNode(doc.documentElement,true);host.appendChild(root);document.body.appendChild(host);
+  try{return extractDiagram(root)}finally{host.remove()}
+}
+
+function extractDiagram(root){
+  const inv=root.getScreenCTM().inverse();
+  const M=el=>inv.multiply(el.getScreenCTM());
+  const tp=(m,x,y)=>({x:m.a*x+m.c*y+m.e,y:m.b*x+m.d*y+m.f});
+  const absBox=el=>{const b=el.getBBox(),m=M(el);const ps=[tp(m,b.x,b.y),tp(m,b.x+b.width,b.y),tp(m,b.x,b.y+b.height),tp(m,b.x+b.width,b.y+b.height)];
+    const xs=ps.map(p=>p.x),ys=ps.map(p=>p.y);const x=Math.min(...xs),y=Math.min(...ys);return {x,y,w:Math.max(...xs)-x,h:Math.max(...ys)-y,s:Math.hypot(m.a,m.b)}};
+  const hidden=el=>el.closest('defs,clipPath,mask,marker,pattern,symbol,title,desc');
+  const shown=el=>{const cs=getComputedStyle(el);return cs.display!=='none'&&cs.visibility!=='hidden'&&parseFloat(cs.opacity)>0.02};
+  const all=root.querySelectorAll('rect,ellipse,circle,path,polygon,polyline,line');
+  const rb=absBox(root);const rootArea=Math.max(1,rb.w*rb.h);
+  const blocks=[],wires=[],arrows=[];let bg=null;
+  for(const el of all){
+    if(hidden(el)||!shown(el))continue;
+    let box;try{box=absBox(el)}catch(_){continue}
+    if(!box.w&&!box.h)continue;
+    const cs=getComputedStyle(el);
+    const fo=parseFloat(cs.fillOpacity),so=parseFloat(cs.strokeOpacity),sw=parseFloat(cs.strokeWidth)||0;
+    const fill=fo>0.05?cssColorToHex(cs.fill):null;
+    const stroke=(so>0.05&&sw>0)?cssColorToHex(cs.stroke):null;
+    const tag=el.tagName.toLowerCase();
+    const d=tag==='path'?(el.getAttribute('d')||''):'';
+    const closed=['rect','ellipse','circle','polygon'].includes(tag)||/z\s*$/i.test(d.trim());
+    if(fill&&closed&&box.w*box.h>rootArea*0.5){bg=fill;continue}
+    if(closed&&(fill||stroke)&&box.w>=18&&box.h>=12){
+      let type='rect';
+      if(tag==='ellipse'||tag==='circle')type='ellipse';
+      else if(tag==='rect'){const rx=parseFloat(el.getAttribute('rx')||el.getAttribute('ry')||0)*box.s;type=rx>=Math.min(box.w,box.h)/2*0.9?'pill':rx>3?'round':'rect'}
+      else if(/[aAcCqQ]/.test(d))type='round';
+      blocks.push({x:box.x,y:box.y,w:box.w,h:box.h,type,fill:fill||'none',stroke:fill?(stroke&&stroke!==fill?stroke:'none'):(stroke||'none')});
+      continue;
+    }
+    if(closed&&fill&&box.w<18&&box.h<18){arrows.push({x:box.x+box.w/2,y:box.y+box.h/2});continue}
+    if(stroke&&(!fill||!closed)){
+      if(box.w<16&&box.h<16){arrows.push({x:box.x+box.w/2,y:box.y+box.h/2});continue}
+      const m=M(el);let raw=[];
+      if(tag==='line')raw=[{x:+el.getAttribute('x1'),y:+el.getAttribute('y1')},{x:+el.getAttribute('x2'),y:+el.getAttribute('y2')}];
+      else if(tag==='polyline'||tag==='polygon')raw=[...el.points].map(p=>({x:p.x,y:p.y}));
+      else{const L=el.getTotalLength();if(!L||L<12)continue;const n=Math.min(600,Math.max(2,Math.ceil(L/2)));
+        let piece=[],best=[];const step=L/n;
+        for(let k=0;k<=n;k++){const p=el.getPointAtLength(L*k/n);const q={x:p.x,y:p.y};const l=piece[piece.length-1];
+          if(l&&Math.hypot(q.x-l.x,q.y-l.y)>step*3){if(piece.length>best.length)best=piece;piece=[]}piece.push(q)}
+        if(piece.length>best.length)best=piece;raw=best}
+      let pts=raw.map(p=>tp(m,p.x,p.y));if(pts.length<2)continue;
+      pts=squareCorners(rdp(pts,1.6));
+      if(polyLen(pts)<12)continue;
+      wires.push({pts,color:snapWireColor(stroke),width:clamp(Math.round(sw*box.s),1,4),dash:cs.strokeDasharray&&cs.strokeDasharray!=='none',
+        mStart:cs.markerStart&&cs.markerStart!=='none',mEnd:cs.markerEnd&&cs.markerEnd!=='none'});
+    }
+  }
+  // merge duplicate blocks (shape + separate outline / shadow)
+  blocks.sort((a,b)=>b.w*b.h-a.w*a.h);
+  const B2=[];
+  for(const b of blocks){const t=B2.find(o=>Math.abs(o.x-b.x)<4&&Math.abs(o.y-b.y)<4&&Math.abs(o.w-b.w)<6&&Math.abs(o.h-b.h)<6);
+    if(t){if(t.fill==='none'&&b.fill!=='none')t.fill=b.fill;if(b.stroke!=='none'&&t.stroke==='none'&&b.stroke!==t.fill)t.stroke=b.stroke;continue}B2.push(b)}
+  // small patches filled with the board colour are cable-name backgrounds, not gear
+  const bgHex=bg||'#ffffff';
+  for(let i=B2.length-1;i>=0;i--){const o=B2[i];if(o.fill!=='none'&&o.stroke==='none'&&o.h<=32&&cdist(o.fill,bgHex)<14)B2.splice(i,1)}
+  // texts
+  const texts=[];
+  root.querySelectorAll('text').forEach(el=>{
+    if(hidden(el)||!shown(el))return;
+    const tsp=[...el.querySelectorAll('tspan')].filter(t=>t.textContent.trim());
+    let lines;
+    if(tsp.length>1){const rows=new Map();tsp.forEach(t=>{const y=Math.round(parseFloat(t.getAttribute('y')||t.getAttribute('dy')||0));const k=t.hasAttribute('y')?y:rows.size;rows.set(k,(rows.get(k)?rows.get(k)+' ':'')+t.textContent.trim())});lines=[...rows.values()]}
+    else lines=[el.textContent.trim()];
+    const str=lines.join('\n').trim();if(!str)return;
+    let box;try{box=absBox(el)}catch(_){return}
+    const cs=getComputedStyle(el);
+    texts.push({str,box,fs:parseFloat(cs.fontSize)*box.s,color:cssColorToHex(cs.fill),bold:parseInt(cs.fontWeight)>=600,anchor:cs.textAnchor});
+  });
+  root.querySelectorAll('foreignObject').forEach(el=>{
+    if(hidden(el))return;const str=(el.innerText||el.textContent||'').replace(/\n{2,}/g,'\n').trim();if(!str)return;
+    let box;try{box=absBox(el)}catch(_){return}
+    let deep=el;const walker=document.createTreeWalker(el,NodeFilter.SHOW_TEXT);let tn;while((tn=walker.nextNode())){if(tn.textContent.trim()){deep=tn.parentElement;break}}
+    const cs=getComputedStyle(deep);
+    texts.push({str,box,fs:parseFloat(cs.fontSize)*box.s,color:cssColorToHex(cs.color),bold:parseInt(cs.fontWeight)>=600,anchor:cs.textAlign==='left'||cs.textAlign==='start'?'start':'middle',fo:true});
+  });
+  const realTexts=texts.filter(t=>!/made with whimsical/i.test(t.str));
+  // assign text to the smallest containing block
+  const perBlock=new Map(),loose=[];
+  for(const t of realTexts){
+    const c={x:t.box.x+t.box.w/2,y:t.box.y+t.box.h/2};
+    let host=null;for(const b of B2){if(c.x>=b.x&&c.x<=b.x+b.w&&c.y>=b.y&&c.y<=b.y+b.h&&(!host||b.w*b.h<host.w*host.h))host=b}
+    if(host){if(!perBlock.has(host))perBlock.set(host,[]);perBlock.get(host).push(t)}else loose.push(t);
+  }
+  const sizeKey=fs=>fs<=12.5?'s':fs<=17?'m':'l';
+  // build board
+  let name='Whimsical import '+today();if(store.boards.some(x=>x.name===name)){let i=2;while(store.boards.some(x=>x.name===name+' ('+i+')'))i++;name+=' ('+i+')'}
+  const b=newBoardObj(name);if(bg)b.bg=bg;
+  const nodes=B2.map(o=>{
+    const ts=(perBlock.get(o)||[]).sort((a,z)=>a.box.y-z.box.y||a.box.x-z.box.x);
+    const first=ts[0];
+    const left=first&&ts.some(t=>t.anchor==='start')&&(first.box.x-o.x)<o.w*0.2&&(first.box.w<o.w*0.8||ts.length>2);
+    const n={id:uid(),type:o.type,x:o.x,y:o.y,w:o.w,h:o.h,text:ts.map(t=>t.str).join('\n'),fill:o.fill,stroke:o.stroke,
+      textColor:first&&first.color?first.color:(o.fill!=='none'&&isLight(o.fill)?'#111317':'#ffffff'),
+      fontSize:first?sizeKey(first.fs):'m',bold:!!(first&&first.bold),align:left?'left':'center'};
+    if(n.type==='round'&&Math.min(n.w,n.h)<24)n.type='rect';
+    return n;
+  });
+  const nodeAtEnd=p=>{let best=null,bd=Infinity;
+    for(const n of nodes){const pad=10;if(p.x<n.x-pad||p.x>n.x+n.w+pad||p.y<n.y-pad||p.y>n.y+n.h+pad)continue;
+      const inside=p.x>n.x&&p.x<n.x+n.w&&p.y>n.y&&p.y<n.y+n.h;
+      const edge=inside?Math.min(p.x-n.x,n.x+n.w-p.x,p.y-n.y,n.y+n.h-p.y):Math.hypot(Math.max(n.x-p.x,0,p.x-n.x-n.w),Math.max(n.y-p.y,0,p.y-n.y-n.h));
+      if(edge<=12&&edge<bd){bd=edge;best=n}}
+    return best};
+  // dedupe wires (same path drawn twice)
+  const W2=[];
+  for(const w of wires){const a=w.pts[0],z=w.pts[w.pts.length-1];
+    if(W2.some(o=>{const oa=o.pts[0],oz=o.pts[o.pts.length-1];return (Math.hypot(oa.x-a.x,oa.y-a.y)<3&&Math.hypot(oz.x-z.x,oz.y-z.y)<3)||(Math.hypot(oa.x-z.x,oa.y-z.y)<3&&Math.hypot(oz.x-a.x,oz.y-a.y)<3)}))continue;
+    // skip strokes that live entirely inside one block (icons, underlines)
+    const inBlock=nodes.find(n=>w.pts.every(p=>p.x>n.x+6&&p.x<n.x+n.w-6&&p.y>n.y+6&&p.y<n.y+n.h-6));if(inBlock)continue;
+    W2.push(w)}
+  const outWires=W2.map(w=>{
+    const a=w.pts[0],z=w.pts[w.pts.length-1];
+    const na=nodeAtEnd(a),nz=nodeAtEnd(z);
+    const from=na?attachTo(na,a,true):{x:a.x,y:a.y};
+    const to=nz&&nz!==na?attachTo(nz,z,true):{x:z.x,y:z.y};
+    const near=p=>arrows.some(c=>Math.hypot(c.x-p.x,c.y-p.y)<14);
+    return {id:uid(),from,to,pts:w.pts.slice(1,-1).map(p=>({x:p.x,y:p.y})),color:w.color,width:w.width,style:'straight',label:'',labelSize:'s',labelPos:.5,
+      arrowEnd:w.mEnd||near(z),arrowStart:w.mStart||near(a),dash:!!w.dash,_pts:w.pts};
+  });
+  // loose text: wire labels if near a wire, otherwise text blocks
+  for(const t of loose){
+    const c={x:t.box.x+t.box.w/2,y:t.box.y+t.box.h/2};let best=null,bd=Infinity;
+    for(const w of outWires){const d=distToPoly(c,w._pts);if(d<bd){bd=d;best=w}}
+    if(best&&bd<=Math.max(14,t.box.h*0.8)){best.label=best.label?best.label+' '+t.str.replace(/\n/g,' '):t.str.replace(/\n/g,' ');best.labelPos=nearestT(best._pts,c);best.labelSize=sizeKey(t.fs);continue}
+    nodes.push({id:uid(),type:'text',x:t.box.x-4,y:t.box.y-2,w:t.box.w+8,h:t.box.h+4,text:t.str,fill:'none',stroke:'none',textColor:t.color||'#ffffff',fontSize:sizeKey(t.fs),bold:t.bold,align:t.anchor==='start'?'left':'center'});
+  }
+  outWires.forEach(w=>delete w._pts);
+  // shift to a clean origin
+  let mx=Infinity,my=Infinity;
+  nodes.forEach(n=>{mx=Math.min(mx,n.x);my=Math.min(my,n.y)});
+  outWires.forEach(w=>{[w.from,w.to,...w.pts].forEach(p=>{if(p.x!=null&&!p.node){mx=Math.min(mx,p.x);my=Math.min(my,p.y)}})});
+  if(mx===Infinity){mx=0;my=0}
+  const dx=40-mx,dy=40-my,r=v=>Math.round(v*2)/2;
+  nodes.forEach(n=>{n.x=r(n.x+dx);n.y=r(n.y+dy);n.w=r(n.w);n.h=r(n.h)});
+  outWires.forEach(w=>{w.pts=w.pts.map(p=>({x:r(p.x+dx),y:r(p.y+dy)}));['from','to'].forEach(k=>{if(!w[k].node){w[k]={x:r(w[k].x+dx),y:r(w[k].y+dy)}}})});
+  b.nodes=nodes;b.wires=outWires;
+  return {board:b,stats:{blocks:nodes.filter(n=>n.type!=='text').length,texts:nodes.filter(n=>n.type==='text').length,wires:outWires.length,
+    attached:outWires.filter(w=>w.from.node&&w.to.node).length,labels:outWires.filter(w=>w.label).length}};
+}
+function runSvgImport(text,msgEl){
+  let res;
+  try{res=importSVG(text)}catch(e){const m=e.message||'That SVG could not be read.';if(msgEl)msgEl.textContent=m;else toast(m);return false}
+  const s=res.stats;
+  if(!s.blocks&&!s.wires){const m='No shapes or cables found in that SVG.';if(msgEl)msgEl.textContent=m;else toast(m);return false}
+  store.boards.push(res.board);closeModal();openBoard(res.board.id);
+  toast(`Imported ${s.blocks} blocks and ${s.wires} cables (${s.attached} connected at both ends)`);
+  return true;
+}
+$('#doSvgImport').onclick=()=>{const t=$('#svgText').value;if(!t.trim()){$('#svgMsg').textContent='Paste the SVG from Whimsical first.';return}if(runSvgImport(t,$('#svgMsg')))$('#svgText').value=''};
+$('#svgFile').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>runSvgImport(r.result,$('#svgMsg'));r.readAsText(f);e.target.value=''};
+document.addEventListener('paste',e=>{
+  const t=e.target;if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;
+  const dt=e.clipboardData;if(!dt)return;
+  const txt=dt.getData('image/svg+xml')||dt.getData('text/plain')||dt.getData('text/html')||'';
+  if(txt.includes('<svg')){e.preventDefault();runSvgImport(txt,null)}
+});
 
 /* ================= boot */
 if(window.claude||window.top!==window.self){['#dlExport','#dlSvg','#dlPng'].forEach(q=>$(q).hidden=true);$('#dlNote').hidden=false}

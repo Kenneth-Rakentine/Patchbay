@@ -16,6 +16,7 @@ A Whimsical-style diagram editor for mapping hardware studio rigs: synths, mixer
 - **Named, colour-coded cables.** Give any cable a name (ch.15/16, Aux 2, thru…) in S/M/L, plus colour, thickness, dashes and arrowheads.
 - **Your own cable legend.** Name each cable colour by signal type (Audio, MIDI, USB, ADAT, aux paths…) and drop a legend block onto the board with one click.
 - **Boards you can iterate on.** Duplicate a board to start a new version of your setup. Dates in the name (like `Current Setup 10/05/26`) roll forward to today automatically.
+- **Import from Whimsical.** Bring an existing Whimsical diagram in as an editable board (see below).
 - **Export** a board as PNG or SVG, and back up or restore every board as one JSON file.
 
 ## Controls
@@ -34,6 +35,15 @@ A Whimsical-style diagram editor for mapping hardware studio rigs: synths, mixer
 | Undo / redo | Ctrl+Z / Ctrl+Shift+Z |
 | Fit the board on screen | Shift+1 |
 | Tools | V select, H pan, R block, O ellipse, T text, L wire |
+
+## Importing from Whimsical
+
+1. In Whimsical, select everything on the board (Ctrl+A), right-click, and choose **Copy as SVG**.
+2. Click an empty spot on the Patchbay canvas and press **Ctrl+V**. (Or open **Backup & import** and paste it, or load a saved `.svg` file.)
+
+The diagram arrives as a new board. Shapes become blocks with their colours and text. Lines become cables that are attached to the blocks they touch, with their bends, colours, dashes and arrowheads. Text sitting on a line becomes that cable's name, and cable colours close to your legend colours snap to them so legend names apply. Everything is editable afterwards.
+
+It works with most diagram SVGs, not only Whimsical's. Text that was exported as outlines rather than real text can't be read.
 
 ## Where your boards are saved
 
