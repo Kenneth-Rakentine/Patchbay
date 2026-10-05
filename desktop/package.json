@@ -1,0 +1,59 @@
+{
+  "name": "patchbay",
+  "productName": "Patchbay",
+  "version": "1.0.0",
+  "description": "Signal-flow diagram editor for hardware studio rigs.",
+  "author": "Kenneth Rakentine",
+  "license": "MIT",
+  "main": "main.js",
+  "scripts": {
+    "prepare-app": "node copy-app.js",
+    "start": "npm run prepare-app && electron .",
+    "dist": "npm run prepare-app && electron-builder --win --publish never"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "io.github.kenneth-rakentine.patchbay",
+    "productName": "Patchbay",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "app/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "Patchbay-Setup-${version}.exe"
+    },
+    "portable": {
+      "artifactName": "Patchbay-Portable-${version}.exe"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Kenneth-Rakentine/Patchbay.git"
+  }
+}
