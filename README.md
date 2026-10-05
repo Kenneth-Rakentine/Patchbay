@@ -14,7 +14,7 @@ A Whimsical-style diagram editor for mapping hardware studio rigs: synths, mixer
 - **Exact connections.** A normal drop snaps to the middle of the nearest side. Hold **Ctrl** while dropping to attach at the exact spot on the edge.
 - **Bends you control.** Select a cable and drag a **＋** handle to add a bend, drag a bend to move it, double-click a bend to remove it. Lines can be straight, elbow (right angles) or curved.
 - **Named, colour-coded cables.** Give any cable a name (ch.15/16, Aux 2, thru…) in S/M/L, plus colour, thickness, dashes and arrowheads.
-- **Your own cable legend.** Name each cable colour by signal type (Audio, MIDI, USB, ADAT, aux paths…) and drop a legend block onto the board with one click.
+- **Your own cable legend.** Name each cable colour by signal type (Audio, MIDI, USB, ADAT, aux paths…). The legend block lists each name in its own cable colour and updates as you rename colours or add cables.
 - **Boards you can iterate on.** Duplicate a board to start a new version of your setup. Dates in the name (like `Current Setup 10/05/26`) roll forward to today automatically.
 - **Import from Whimsical.** Bring an existing Whimsical diagram in as an editable board (see below).
 - **Export** a board as PNG or SVG, and back up or restore every board as one JSON file.
