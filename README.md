@@ -1,6 +1,6 @@
 # Patchbay
 
-A Whimsical-style diagram editor for mapping hardware studio rigs: synths, mixers, aux sends and returns, samplers, interfaces, and every cable in between.
+A diagram editor for mapping hardware studio rigs: synths, mixers, aux sends and returns, samplers, interfaces, and every cable in between.
 
 **Open it:** https://kenneth-rakentine.github.io/Patchbay/
 **Windows app:** [latest release](https://github.com/Kenneth-Rakentine/Patchbay/releases/latest)
