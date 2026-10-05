@@ -77,6 +77,15 @@ button{cursor:pointer;background:none;border:0}
 .ib[disabled]{opacity:.35;cursor:default}
 .ib kbd{position:absolute;right:2px;bottom:1px;font-family:var(--mono);font-size:8px;opacity:.55}
 .spacer{flex:1}
+.fwrap{position:relative;flex:none}
+#fileMenu{position:fixed;z-index:45;min-width:250px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.5);padding:6px}
+#fileMenu button{display:flex;width:100%;align-items:center;justify-content:space-between;gap:16px;padding:8px 10px;border-radius:6px;text-align:left;font-size:13px}
+#fileMenu button:hover,#fileMenu button:focus-visible{background:var(--panel2)}
+#fileMenu button[disabled]{opacity:.4;cursor:default}
+#fileMenu kbd{font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+#fileMenu .fm-note{padding:6px 10px 8px;font-size:11.5px;color:var(--muted);line-height:1.4}
+#fileMenu hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
+#status button{font:inherit;color:var(--accent);text-decoration:underline;padding:0}
 #zoomPct{font-family:var(--mono);font-size:11.5px;width:46px;text-align:center;color:var(--muted);font-variant-numeric:tabular-nums}
 #sideToggle{display:none}
 
@@ -194,6 +203,10 @@ input[type=color]{width:24px;height:22px;padding:0;border:1px solid var(--line);
         <button class="ib" id="zoomIn" title="Zoom in" aria-label="Zoom in"><svg width="14" height="14" viewBox="0 0 14 14"><path d="M7 2v10M2 7h10" stroke="currentColor" stroke-width="1.8"/></svg></button>
         <button class="ib" id="fitBtn" title="Fit board (Shift+1)" aria-label="Fit board"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/></svg></button>
       </div>
+      <div class="fwrap">
+        <button class="ib" id="fileBtn" title="File: save, open, share" aria-label="File menu" aria-haspopup="menu" aria-expanded="false"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 1.5h5.5L13 5v9.5H4z"/><path d="M9.5 1.5V5H13"/><path d="M6.5 9.5h4M6.5 12h4"/></svg></button>
+        <div id="fileMenu" role="menu" hidden></div>
+      </div>
       <button class="ib" id="pngBtn" title="Export PNG" aria-label="Export board as PNG"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="12" height="10" rx="1.5"/><circle cx="6" cy="6.5" r="1.2"/><path d="M2.5 12l3.5-3.5 2.5 2.5 2-2 3 3"/></svg></button>
       <button class="ib" id="panelBtn" title="Show or hide the properties panel" aria-label="Properties panel"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M10 2.5v11"/></svg></button>
     </header>
@@ -260,6 +273,16 @@ input[type=color]{width:24px;height:22px;padding:0;border:1px solid var(--line);
     <div class="mrow"><button class="btn pri" id="copyPng">Copy image</button><span class="spacer"></span><button class="btn" id="closePng">Close</button></div>
   </div>
 </div>
+<div id="shareModal" class="modal" hidden>
+  <div class="mbox" role="dialog" aria-modal="true" aria-labelledby="sTitle">
+    <h2 id="sTitle">Share link</h2>
+    <p class="hint">Anyone who opens this link gets their own editable copy of this board. Nothing is uploaded anywhere: the whole board is packed into the link.</p>
+    <textarea id="shareText" readonly spellcheck="false" style="height:90px"></textarea>
+    <p class="hint" id="shareNote"></p>
+    <div class="mrow"><button class="btn pri" id="copyShare">Copy link</button><span class="spacer"></span><button class="btn" id="closeShare">Close</button></div>
+  </div>
+</div>
+<input type="file" id="openFile" accept=".json,application/json" hidden>
 <div id="toast" hidden></div>
 
 <script>
@@ -378,8 +401,10 @@ function save(){
   clearTimeout(saveT);
   saveT=setTimeout(()=>{
     const st=$('#status');
-    try{localStorage.setItem(KEY,JSON.stringify(store));storageOK=true;st.textContent='Saved in this browser';st.classList.remove('bad')}
-    catch(e){storageOK=false;st.textContent='Not saved here: use Backup';st.classList.add('bad')}
+    try{localStorage.setItem(KEY,JSON.stringify(store));storageOK=true}
+    catch(e){storageOK=false}
+    if(typeof updateStatus==='function'){updateStatus();queueFileWrite()}
+    else{st.textContent=storageOK?'Saved in this browser':'Not saved here: use Backup';st.classList.toggle('bad',!storageOK)}
   },250);
 }
 
@@ -394,7 +419,7 @@ function openBoard(id){
   renderAll();
   if(!B.view)fit();else applyView();
   renderBoards();renderInspector();updateUndoBtns();
-  save();
+  save();if(typeof updateStatus==='function')updateStatus();
   $('#app').classList.remove('side-open');
 }
 
@@ -429,7 +454,7 @@ $('#boardList').addEventListener('click',e=>{
   if(a==='ren'){renaming=id;confirmDel=null;renderBoards();return}
   if(a==='del'){if(store.boards.length===1){toast('Keep at least one board');return}confirmDel=id;renderBoards();return}
   if(a==='delno'){confirmDel=null;renderBoards();return}
-  if(a==='delyes'){const i=store.boards.findIndex(b=>b.id===id);store.boards.splice(i,1);hist.delete(id);confirmDel=null;if(store.active===id)openBoard(store.boards[Math.max(0,i-1)].id);else{renderBoards();save()}toast('Board deleted');return}
+  if(a==='delyes'){if(typeof fileLinks!=='undefined'&&fileLinks.has(id)){fileLinks.delete(id);idbSet(id,undefined)}const i=store.boards.findIndex(b=>b.id===id);store.boards.splice(i,1);hist.delete(id);confirmDel=null;if(store.active===id)openBoard(store.boards[Math.max(0,i-1)].id);else{renderBoards();save()}toast('Board deleted');return}
   if(renaming)return;
   if(id!==store.active)openBoard(id);
 });
@@ -955,6 +980,7 @@ function deleteSelection(){
 /* ================= keyboard */
 const typing=e=>{const t=e.target;return t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)};
 window.addEventListener('keydown',e=>{
+  if(!$('#shareModal').hidden){if(e.key==='Escape')$('#shareModal').hidden=true;return}
   if(!$('#pngModal').hidden){if(e.key==='Escape')$('#pngModal').hidden=true;return}
   if(!$('#modal').hidden){if(e.key==='Escape')closeModal();return}
   if(typing(e))return;
@@ -1398,12 +1424,181 @@ document.addEventListener('paste',e=>{
   if(txt.includes('<svg')){e.preventDefault();runSvgImport(txt,null)}
 });
 
+/* ================= files, share links, persistent storage */
+const embedded=!!(window.claude||window.top!==window.self);
+const fsOK=!embedded&&'showSaveFilePicker' in window;
+const fileLinks=new Map(); // board id -> {handle,name,perm}
+function idbOpen(){return new Promise((res,rej)=>{const r=indexedDB.open('patchbay',1);r.onupgradeneeded=()=>r.result.createObjectStore('handles');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+async function idbSet(k,v){try{const db=await idbOpen();await new Promise((res,rej)=>{const t=db.transaction('handles','readwrite');const os=t.objectStore('handles');v===undefined?os.delete(k):os.put(v,k);t.oncomplete=res;t.onerror=()=>rej(t.error)})}catch(_){}}
+async function idbAll(){try{const db=await idbOpen();return await new Promise((res,rej)=>{const out=[];const c=db.transaction('handles').objectStore('handles').openCursor();c.onsuccess=()=>{const k=c.result;if(k){out.push([k.key,k.value]);k.continue()}else res(out)};c.onerror=()=>rej(c.error)})}catch(_){return []}}
+const boardJSON=b=>JSON.stringify({app:'patchbay',version:1,boards:[b]},null,1);
+const fileName=()=>fileBase()+'.patchbay.json';
+
+function updateStatus(){
+  const st=$('#status');if(!st||!B)return;
+  const L=fileLinks.get(B.id);
+  st.classList.toggle('bad',!storageOK&&!L);
+  if(L&&L.perm==='granted'){st.textContent='Saving to '+L.name;st.title='Every change to this board is also written to '+L.name;return}
+  if(L){st.innerHTML='';const b=document.createElement('button');b.textContent='Resume saving to '+L.name;b.onclick=()=>resumeLink(B.id);st.appendChild(b);st.title='';return}
+  st.textContent=storageOK?'Saved in this browser':'Not saved here: use Save to file';st.title='';
+}
+let fileT=null;
+function queueFileWrite(){clearTimeout(fileT);if(!B)return;const id=B.id;if(!fileLinks.has(id))return;fileT=setTimeout(()=>writeLinked(id),500)}
+async function writeLinked(id){
+  const L=fileLinks.get(id);const b=store.boards.find(x=>x.id===id);if(!L||!b||L.perm!=='granted')return false;
+  try{const w=await L.handle.createWritable();await w.write(boardJSON(b));await w.close();return true}
+  catch(e){L.perm='prompt';updateStatus();return false}
+}
+async function resumeLink(id){
+  const L=fileLinks.get(id);if(!L)return;
+  try{L.perm=await L.handle.requestPermission({mode:'readwrite'})}catch(_){}
+  updateStatus();if(L.perm==='granted'&&await writeLinked(id))toast('Saving to '+L.name+' again');
+}
+async function linkHandle(id,handle){
+  let perm='prompt';try{perm=await handle.queryPermission({mode:'readwrite'});if(perm!=='granted')perm=await handle.requestPermission({mode:'readwrite'})}catch(_){}
+  fileLinks.set(id,{handle,name:handle.name,perm});idbSet(id,handle);updateStatus();
+}
+function unlink(id){fileLinks.delete(id);idbSet(id,undefined);updateStatus();toast('Stopped saving to the file. The board stays here in the browser.')}
+async function saveToFile(saveAs){
+  finishEdit();
+  if(!fsOK){if(canDownload){download(fileName(),boardJSON(B),'application/json');toast('Board file downloaded')}else toast('Saving to a file works on the Patchbay site and desktop app. Here, use Backup & import.');return}
+  let L=fileLinks.get(B.id);
+  try{
+    if(!L||saveAs){
+      const handle=await window.showSaveFilePicker({suggestedName:fileName(),types:[{description:'Patchbay board',accept:{'application/json':['.json']}}]});
+      fileLinks.set(B.id,L={handle,name:handle.name,perm:'granted'});idbSet(B.id,handle);
+    }else if(L.perm!=='granted'){L.perm=await L.handle.requestPermission({mode:'readwrite'})}
+  }catch(e){if(e&&e.name!=='AbortError')toast('Could not save the file: '+(e.message||'unknown error'));return}
+  if(await writeLinked(B.id)){updateStatus();toast(saveAs||!L.saved?'Saved to '+L.name+'. Changes now save there automatically.':'Saved to '+L.name);L.saved=true}
+  else toast('Could not write to '+L.name+'. Try Save as new file.');
+}
+function boardsFromData(data){return Array.isArray(data)?data:data&&data.boards?data.boards:data&&data.nodes?[data]:null}
+async function openBoardsFromText(text,handle){
+  let data;try{data=JSON.parse(text)}catch(_){toast('That file is not a Patchbay board.');return}
+  const boards=(boardsFromData(data)||[]).filter(b=>b&&Array.isArray(b.nodes));
+  if(!boards.length){toast('No boards found in that file.');return}
+  if(boards.length>1){importText(text);toast(`Added ${boards.length} boards from the file`);return}
+  const nb=clone(boards[0]);nb.wires=nb.wires||[];nb.name=nb.name||'Opened board';
+  const ex=nb.id&&store.boards.find(b=>b.id===nb.id);
+  if(ex){
+    openBoard(ex.id);const before=snap();
+    ['name','bg','grid','legend','nodes','wires'].forEach(k=>{if(nb[k]!==undefined)ex[k]=nb[k]});
+    B=ex;$('#boardName').value=B.name;applyBoardLook();renderAll();commit(before);renderBoards();renderInspector();save();
+    toast('Opened '+(handle?handle.name:'the file')+'. Ctrl+Z brings back what was here before.');
+  }else{
+    if(!nb.id||store.boards.some(b=>b.id===nb.id))nb.id=uid();
+    nb.view=nb.view||null;store.boards.push(nb);openBoard(nb.id);toast('Opened '+(handle?handle.name:nb.name));
+  }
+  if(handle&&fsOK)await linkHandle(B.id,handle);
+}
+async function openFromFile(){
+  finishEdit();
+  if(fsOK&&'showOpenFilePicker' in window){
+    try{const [h]=await window.showOpenFilePicker({types:[{description:'Patchbay board',accept:{'application/json':['.json']}}]});const f=await h.getFile();await openBoardsFromText(await f.text(),h)}
+    catch(e){if(e&&e.name!=='AbortError')toast('Could not open the file')}
+    return;
+  }
+  $('#openFile').click();
+}
+$('#openFile').onchange=e=>{const f=e.target.files[0];if(!f)return;f.text().then(t=>openBoardsFromText(t,null));e.target.value=''};
+
+/* share links: the board is deflated and base64url-packed into the #b= hash */
+function b64url(u8){let s='';for(let i=0;i<u8.length;i+=0x8000)s+=String.fromCharCode.apply(null,u8.subarray(i,i+0x8000));return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
+function unb64url(t){t=t.replace(/-/g,'+').replace(/_/g,'/');while(t.length%4)t+='=';const s=atob(t);const u=new Uint8Array(s.length);for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i);return u}
+async function pipeBytes(u8,stream){return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(stream)).arrayBuffer())}
+async function encodeBoard(b){
+  const bytes=new TextEncoder().encode(JSON.stringify({v:1,b}));
+  if('CompressionStream' in window){try{return 'z'+b64url(await pipeBytes(bytes,new CompressionStream('deflate-raw')))}catch(_){}}
+  return 'j'+b64url(bytes);
+}
+async function decodeBoard(code){
+  const kind=code[0],u8=unb64url(code.slice(1));
+  const bytes=kind==='z'?await pipeBytes(u8,new DecompressionStream('deflate-raw')):u8;
+  const o=JSON.parse(new TextDecoder().decode(bytes));return o.b||o;
+}
+async function shareLink(){
+  finishEdit();
+  if(embedded){toast('Share links work on the Patchbay site and desktop app.');return}
+  const b=clone(B);delete b.view;
+  if(!/^https?:/.test(location.protocol)){toast('Share links work when Patchbay is opened from its website.');return}
+  const code=await encodeBoard(b);
+  const url=location.origin+location.pathname+'#b='+code;
+  $('#shareText').value=url;
+  $('#shareNote').textContent=url.length>8000?`This link is long (${Math.round(url.length/1000)}k characters) because the board is big. Most chat apps and forums take it, but some cut long links. If it gets cut off, send the board file instead (File → Save to file).`:`${url.length.toLocaleString()} characters.`;
+  $('#shareModal').hidden=false;$('#copyShare').focus();
+}
+$('#copyShare').onclick=async()=>{const t=$('#shareText');try{await navigator.clipboard.writeText(t.value);toast('Link copied')}catch(_){t.focus();t.select();toast('Selected: press Ctrl+C')}};
+$('#closeShare').onclick=()=>{$('#shareModal').hidden=true};
+$('#shareModal').addEventListener('click',e=>{if(e.target.id==='shareModal')$('#shareModal').hidden=true});
+async function openSharedFromHash(){
+  const h=location.hash;if(!h.startsWith('#b='))return false;
+  const code=h.slice(3);
+  try{history.replaceState(null,'',location.pathname+location.search)}catch(_){}
+  let b;try{b=await decodeBoard(code)}catch(_){toast('That share link is incomplete. Ask for the board file instead.');return false}
+  if(!b||!Array.isArray(b.nodes)){toast('That share link has no board in it.');return false}
+  const key=code.length+':'+code.slice(-48);
+  const had=store.boards.find(x=>x.sharedKey===key);
+  if(had){openBoard(had.id);toast('Opened your copy of “'+had.name+'”');return true}
+  b.id=uid();b.sharedKey=key;b.wires=b.wires||[];b.view=null;b.name=(b.name||'Shared board')+' (shared)';
+  if(!b.legend)b.legend=Object.fromEntries(WIRE_COLORS.map(c=>[c[0],c[1]]));
+  store.boards.push(b);openBoard(b.id);toast('Opened a shared board. It’s your own copy to edit.');return true;
+}
+window.addEventListener('hashchange',()=>{if(location.hash.startsWith('#b='))openSharedFromHash()});
+
+/* file menu */
+const fm=$('#fileMenu'),fb=$('#fileBtn');
+function closeFileMenu(){fm.hidden=true;fb.setAttribute('aria-expanded','false')}
+function openFileMenu(){
+  const L=B&&fileLinks.get(B.id);const off=embedded;
+  fm.innerHTML=`${L?`<div class="fm-note">${L.perm==='granted'?'Saving automatically to':'Paused: saving to'} <b>${esc(L.name)}</b></div>`:''}
+    <button role="menuitem" data-f="save"${off?' disabled':''}>${L?'Save now':'Save to file…'}<kbd>Ctrl S</kbd></button>
+    ${fsOK?`<button role="menuitem" data-f="saveas">Save as new file…<kbd>Ctrl ⇧ S</kbd></button>`:''}
+    <button role="menuitem" data-f="open">Open file…<kbd>Ctrl O</kbd></button>
+    ${L?`<button role="menuitem" data-f="unlink">Stop saving to this file</button>`:''}
+    <hr><button role="menuitem" data-f="share"${off?' disabled':''}>Share link…</button>
+    ${off?'<div class="fm-note">Saving to files and share links work on the Patchbay site and desktop app.</div>':(!fsOK?'<div class="fm-note">This browser downloads a board file instead of saving in place. Chrome and Edge can keep saving to the same file.</div>':'')}`;
+  const r=fb.getBoundingClientRect();fm.style.top=(r.bottom+6)+'px';fm.style.left=Math.max(8,Math.min(r.left,innerWidth-268))+'px';
+  fm.hidden=false;fb.setAttribute('aria-expanded','true');const f=fm.querySelector('button:not([disabled])');if(f)f.focus();
+}
+fb.onclick=e=>{e.stopPropagation();fm.hidden?openFileMenu():closeFileMenu()};
+fm.addEventListener('click',e=>{const b=e.target.closest('[data-f]');if(!b||b.disabled)return;closeFileMenu();
+  ({save:()=>saveToFile(false),saveas:()=>saveToFile(true),open:openFromFile,unlink:()=>unlink(B.id),share:shareLink})[b.dataset.f]()});
+document.addEventListener('pointerdown',e=>{if(!fm.hidden&&!e.target.closest('#fileMenu,#fileBtn'))closeFileMenu()});
+fm.addEventListener('keydown',e=>{if(e.key==='Escape'){closeFileMenu();fb.focus()}
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();const bs=[...fm.querySelectorAll('button:not([disabled])')];const i=bs.indexOf(document.activeElement);bs[(i+(e.key==='ArrowDown'?1:-1)+bs.length)%bs.length].focus()}});
+window.addEventListener('keydown',e=>{
+  if(!(e.ctrlKey||e.metaKey))return;const k=e.key.toLowerCase();
+  if(k==='s'){e.preventDefault();saveToFile(e.shiftKey)}
+  else if(k==='o'){e.preventDefault();openFromFile()}
+},true);
+
+/* drop a board file (or an SVG) onto the window */
+window.addEventListener('dragover',e=>{if(e.dataTransfer&&[...e.dataTransfer.types].includes('Files'))e.preventDefault()});
+window.addEventListener('drop',async e=>{
+  if(!e.dataTransfer||!e.dataTransfer.files.length)return;e.preventDefault();
+  const item=e.dataTransfer.items&&e.dataTransfer.items[0];const f=e.dataTransfer.files[0];
+  let handle=null;if(fsOK&&item&&item.getAsFileSystemHandle){try{const h=await item.getAsFileSystemHandle();if(h&&h.kind==='file')handle=h}catch(_){}}
+  const t=await f.text();
+  if(/\.svg$/i.test(f.name)||t.trimStart().startsWith('<svg')||t.includes('<svg'))runSvgImport(t,null);else openBoardsFromText(t,handle);
+});
+
+async function initFiles(){
+  try{if(navigator.storage&&navigator.storage.persist&&!(await navigator.storage.persisted()))await navigator.storage.persist()}catch(_){}
+  if(!fsOK)return;
+  for(const [id,handle] of await idbAll()){
+    if(!store.boards.some(b=>b.id===id)){idbSet(id,undefined);continue}
+    let perm='prompt';try{perm=await handle.queryPermission({mode:'readwrite'})}catch(_){}
+    fileLinks.set(id,{handle,name:handle.name,perm,saved:true});
+  }
+  updateStatus();
+}
+
 /* ================= boot */
 if(window.claude||window.top!==window.self){['#dlExport','#dlSvg','#dlPng'].forEach(q=>$(q).hidden=true);$('#dlNote').hidden=false}
 load();
 renderTools();
 if(!storageOK){const st=$('#status');st.textContent='Not saved here: use Backup';st.classList.add('bad')}
-requestAnimationFrame(()=>openBoard(store.active));
+requestAnimationFrame(async()=>{if(!(await openSharedFromHash()))openBoard(store.active);initFiles()});
 window.addEventListener('resize',()=>renderOverlay());
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{if(B)renderAll()});
 })();

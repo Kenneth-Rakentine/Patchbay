@@ -18,6 +18,7 @@ A diagram editor for mapping hardware studio rigs: synths, mixers, aux sends and
 - **Sections.** Turn any block into a labelled background area. Cables pass over it, and moving it moves everything inside.
 - **Boards you can iterate on.** Duplicate a board to start a new version of your setup. Dates in the name (like `Current Setup 10/05/26`) roll forward to today automatically.
 - **Import from Whimsical.** Bring an existing Whimsical diagram in as an editable board (see below).
+- **Save, open and share** boards as files that keep saving as you work, or as a link anyone can open. No account needed.
 - **Export** a board as PNG or SVG, and back up or restore every board as one JSON file.
 
 ## Controls
@@ -46,9 +47,16 @@ The diagram arrives as a new board. Shapes become blocks with their colours and 
 
 It works with most diagram SVGs, not only Whimsical's. Text that was exported as outlines rather than real text can't be read.
 
-## Where your boards are saved
+## Saving and sharing
 
-Boards save automatically in the browser or app you're using. The website, the Windows app, and each browser keep **separate** copies. To move boards between them, open **Backup & import**, download the backup, and import it on the other side. Download a backup now and then so you always have one.
+No account needed. Your boards save automatically in the browser (or desktop app) you're using, and nobody else can see them.
+
+- **Save to file** (File menu or Ctrl+S) writes the board to a `.patchbay.json` file on your computer. In Chrome, Edge and the desktop app, every change after that saves to the same file automatically, so keeping it in a Dropbox, Google Drive or OneDrive folder gives you the board on every computer. Other browsers download a copy instead.
+- **Open file** (Ctrl+O, or drag a board file onto the window) brings a board back. Reopening a board you already have replaces it, and Ctrl+Z restores the previous version.
+- **Share link** packs the whole board into a link. Whoever opens it gets their own copy to edit; nothing is uploaded anywhere. Big boards make long links, so if a forum cuts one off, share the board file instead.
+- **Backup & import** saves or restores every board at once.
+
+The website, the desktop app and each browser keep separate boards, so use a board file or a backup to move between them.
 
 ## Install it
 
