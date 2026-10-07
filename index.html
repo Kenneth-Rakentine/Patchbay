@@ -71,6 +71,15 @@ button{cursor:pointer;background:none;border:0}
 #boardName:hover{border-color:var(--line)}
 #boardName:focus{border-color:var(--accent);outline:none;background:var(--ink)}
 .grp{display:flex;align-items:center;gap:2px;background:var(--ink);border:1px solid var(--line);border-radius:8px;padding:2px;flex:none}
+.zgrp{flex-direction:column;align-items:stretch;gap:0;padding:1px 2px 3px}
+.zrow{display:flex;align-items:center;gap:2px}
+.zgrp .ib{height:24px}
+#zoomSlider{-webkit-appearance:none;appearance:none;width:auto;height:10px;margin:0 6px;background:transparent;cursor:ew-resize}
+#zoomSlider::-webkit-slider-runnable-track{height:3px;border-radius:2px;background:var(--line)}
+#zoomSlider::-moz-range-track{height:3px;border-radius:2px;background:var(--line)}
+#zoomSlider::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;margin-top:-3.5px;border-radius:50%;background:var(--accent);border:0}
+#zoomSlider::-moz-range-thumb{width:10px;height:10px;border-radius:50%;background:var(--accent);border:0}
+#zoomSlider:focus-visible{outline:2px solid var(--accent);outline-offset:1px;border-radius:4px}
 .ib{width:32px;height:30px;border-radius:6px;display:grid;place-items:center;color:#c3c8d2;flex:none;position:relative}
 .ib:hover{background:var(--panel2);color:var(--fg)}
 .ib.on{background:var(--accent);color:var(--accent-ink)}
@@ -203,11 +212,14 @@ input[type=color]{width:24px;height:22px;padding:0;border:1px solid var(--line);
         <button class="ib" id="redoBtn" title="Redo (Ctrl+Shift+Z)" aria-label="Redo"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M11 3l3 3-3 3"/><path d="M14 6H7a4 4 0 000 8h3"/></svg></button>
       </div>
       <div class="spacer"></div>
-      <div class="grp">
+      <div class="grp zgrp">
+        <div class="zrow">
         <button class="ib" id="zoomOut" title="Zoom out" aria-label="Zoom out"><svg width="14" height="14" viewBox="0 0 14 14"><path d="M2 7h10" stroke="currentColor" stroke-width="1.8"/></svg></button>
         <span id="zoomPct">100%</span>
         <button class="ib" id="zoomIn" title="Zoom in" aria-label="Zoom in"><svg width="14" height="14" viewBox="0 0 14 14"><path d="M7 2v10M2 7h10" stroke="currentColor" stroke-width="1.8"/></svg></button>
         <button class="ib" id="fitBtn" title="Fit board (Shift+1)" aria-label="Fit board"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/></svg></button>
+        </div>
+        <input type="range" id="zoomSlider" min="-2.3026" max="1.3863" step="0.005" value="0" aria-label="Zoom" title="Drag to zoom">
       </div>
       <div class="fwrap">
         <button class="ib" id="fileBtn" title="File: save, open, share" aria-label="File menu" aria-haspopup="menu" aria-expanded="false"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 1.5h5.5L13 5v9.5H4z"/><path d="M9.5 1.5V5H13"/><path d="M6.5 9.5h4M6.5 12h4"/></svg></button>
@@ -490,6 +502,7 @@ function applyView(){
   world.setAttribute('transform',`translate(${v.x} ${v.y}) scale(${v.z})`);
   $('#dots').setAttribute('patternTransform',`translate(${v.x} ${v.y}) scale(${v.z})`);
   $('#zoomPct').textContent=Math.round(v.z*100)+'%';
+  const zs=$('#zoomSlider');if(zs&&document.activeElement!==zs)zs.value=Math.log(v.z);
   renderOverlay();
 }
 function toWorld(e){const r=svg.getBoundingClientRect(),v=B.view;return {x:(e.clientX-r.left-v.x)/v.z,y:(e.clientY-r.top-v.y)/v.z}}
@@ -498,6 +511,9 @@ function zoomAt(f,sx,sy){
   v.x=sx-(sx-v.x)*k;v.y=sy-(sy-v.y)*k;v.z=z;applyView();save();
 }
 function zoomCenter(f){const r=svg.getBoundingClientRect();zoomAt(f,r.width/2,r.height/2)}
+$('#zoomSlider').addEventListener('input',e=>{const z=Math.exp(+e.target.value);zoomCenter(z/B.view.z)});
+$('#zoomSlider').addEventListener('change',e=>{e.target.value=Math.log(B.view.z)});
+$('#zoomSlider').addEventListener('keydown',e=>e.stopPropagation());
 function contentBox(){
   let x1=Infinity,y1=Infinity,x2=-Infinity,y2=-Infinity;
   const add=(x,y)=>{x1=Math.min(x1,x);y1=Math.min(y1,y);x2=Math.max(x2,x);y2=Math.max(y2,y)};
@@ -864,8 +880,8 @@ function mutate(fn){const b=snap();fn();commit(b);renderAll();renderInspector()}
 function setTool(t){tool=t;svg.className.baseVal='t-'+t;renderTools();renderOverlay()}
 // Hover notes for the tools: name, key, and what the tool does
 const TOOL_TIPS={
-  select:[['V','Select and move things']],
-  hand:[['H','Pan around the board'],['Space','hold and drag, from any tool']],
+  select:[['V','Select and move things'],['E','Switch between this and the hand']],
+  hand:[['H','Pan around the board'],['E','Switch between this and select'],['Space','Hold and drag, from any tool']],
   rect:[['R','Click or drag on the canvas to place a block'],['N','Add a block at the cursor, ready to type'],['Ctrl 1','Same as N, in the desktop app']],
   ellipse:[['O','Click or drag to place an ellipse']],
   text:[['T','Click to place a text label']],
@@ -1180,6 +1196,7 @@ window.addEventListener('keydown',e=>{
   if(c||e.altKey)return;
   const map={v:'select',h:'hand',r:'rect',o:'ellipse',t:'text',l:'wire',c:'wire'};
   if(k==='n'){e.preventDefault();addBlockHere();return}
+  if(k==='e'){setTool(tool==='hand'?'select':'hand');return}
   if(map[k]){setTool(map[k]);return}
   if(k==='='||k==='+'){zoomCenter(1.2);return}
   if(k==='-'){zoomCenter(1/1.2);return}
@@ -1238,7 +1255,7 @@ function boardPanel(){
   <li><b>N</b> adds a block at the cursor (Ctrl+1 in the desktop app); <b>R</b> draws one</li>
   <li><b>Space + drag</b> or middle mouse pans · <b>Ctrl + wheel</b> zooms</li>
   <li><b>Ctrl C / V / D</b> copy, paste, duplicate · <b>Ctrl Z</b> undo</li>
-  <li><b>V H R O T L</b> select, pan, block, ellipse, text, wire</li>
+  <li><b>V H R O T L</b> select, pan, block, ellipse, text, wire · <b>E</b> switches select and pan</li>
   </ul></div>`;
 }
 function renderInspector(){

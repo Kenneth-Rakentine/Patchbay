@@ -35,12 +35,12 @@ A diagram editor for mapping hardware studio rigs: synths, mixers, aux sends and
 | Edit text | Double-click a block: its text is selected, or the cursor waits in an empty block (Ctrl+Enter or Esc to finish) |
 | New block | N adds one at the cursor (Ctrl+1 in the desktop app), or click or drag with the Block tool (R) |
 | Name a cable | Double-click the cable |
-| Pan / zoom | Space + drag or middle mouse / Ctrl + scroll wheel |
+| Pan / zoom | Space + drag or middle mouse / Ctrl + scroll wheel, the + and − buttons, or the zoom slider under them |
 | Copy, paste, duplicate | Ctrl+C, Ctrl+V, Ctrl+D |
 | Undo / redo | Ctrl+Z / Ctrl+Shift+Z |
 | Save to file / open a file | Ctrl+S / Ctrl+O (or the File button, top right) |
 | Fit the board on screen | Shift+1 |
-| Tools | V select, H pan, R block, O ellipse, T text, L wire |
+| Tools | V select, H pan, R block, O ellipse, T text, L wire. E switches between select and pan |
 
 ## Importing from Whimsical
 
