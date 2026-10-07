@@ -1,6 +1,8 @@
 Patchbay: a diagram editor for hardware studio rigs.
 
-**New in 1.5.1:** double-clicking a block always edits its text (it no longer creates a new block), double-clicking a cable names it, N adds a block at the cursor (Ctrl+1 in the desktop app), and toolbar buttons show their shortcuts on hover.
+**New in 1.5.2:** a new example board that shows sections, self-routing cables and the live colour-coded legend. File → Add example board adds a copy anytime.
+
+**1.5.1:** double-clicking a block always edits its text (it no longer creates a new block), double-clicking a cable names it, N adds a block at the cursor (Ctrl+1 in the desktop app), and toolbar buttons show their shortcuts on hover.
 
 **1.5.0:** cables route around blocks instead of behind them, leaving and entering square to the side they're attached to, and re-plan live while you drag. Select a cable and drag the white handle on any middle segment to move that part of it; Clear bends returns it to automatic.
 

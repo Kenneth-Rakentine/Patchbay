@@ -5,7 +5,7 @@ A diagram editor for mapping hardware studio rigs: synths, mixers, aux sends and
 **Open it:** https://kenneth-rakentine.github.io/Patchbay/
 **Windows app:** [latest release](https://github.com/Kenneth-Rakentine/Patchbay/releases/latest)
 
-![Example board: synths into a ZED-R16 mixer with aux loops, then Octatrack, compressor and interface](docs/example-board.png)
+![Example board: synths into a ZED-R16 mixer with aux loops, then Octatrack, compressor and interface, grouped into sections with a colour-coded cable legend](docs/example-board.png)
 
 ## What it does
 
@@ -79,6 +79,10 @@ You can also drag a board file straight onto the Patchbay window. If you open a 
 ### Share a board as a link
 
 Click the **File** button, choose **Share link…**, then **Copy link**. Whoever opens the link gets their own copy of the board to edit. Nothing is uploaded anywhere: the whole board is packed into the link. Big boards make long links, so if a forum cuts one off, share the board file instead.
+
+### Example board
+
+New visitors start with an example board. To get a fresh copy anytime, click the **File** button and choose **Add example board**. It's added alongside your own boards, so nothing you have changes.
 
 ### Back up everything
 

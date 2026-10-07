@@ -357,45 +357,54 @@ const W=id=>wmap.get(id);
 function newBoardObj(name){return {id:uid(),name,bg:'#1b1d22',grid:true,nodes:[],wires:[],legend:Object.fromEntries(WIRE_COLORS.map(c=>[c[0],c[1]])),view:null,created:Date.now()}}
 
 function seedBoard(){
-  const b=newBoardObj('Current Setup '+today());
-  const node=(text,x,y,fill,w=130,h=44,extra={})=>{const o={id:uid(),type:'round',x,y,w,h,text,fill,stroke:'none',textColor:'#ffffff',fontSize:'m',bold:false,align:'center',...extra};b.nodes.push(o);return o};
+  const b=newBoardObj('Example board');
+  const node=(text,x,y,fill,w=130,h=44,extra={})=>{const o={id:uid(),type:'round',x,y,w,h,text,fill,stroke:'none',textColor:fill==='#e5e7eb'?'#111317':'#ffffff',fontSize:'m',bold:false,align:'center',...extra};b.nodes.push(o);return o};
+  const zone=(text,x,y,w,h)=>node(text,x,y,'#22252c',w,h,{type:'rect',zone:true,stroke:'#2e323c',textColor:'#8c94a3',fontSize:'s',bold:true,align:'left'});
   const wire=(a,af,z,zf,color,label='',extra={})=>{const w={id:uid(),from:{node:a.id,fx:af[0],fy:af[1]},to:{node:z.id,fx:zf[0],fy:zf[1]},pts:[],color,width:2,style:'elbow',label,labelSize:'s',labelPos:.5,arrowEnd:true,arrowStart:false,dash:false,...extra};b.wires.push(w);return w};
-  const CR='#b3122e', SL='#3a3f4b', FX='#4b5563';
+  const SRC='#b3122e',MIX='#3a3f4b',FX='#e5e7eb',MIC='#1f6feb';
+  const AUD='#9aa3ad',USB='#3d8bfd',A13='#2fb37a',A24='#b0305a',OCT='#9b6bf2';
+  // sections first, so they sit behind everything
+  zone('SOUND SOURCES',40,40,1260,120);
+  zone('MIXER  ·  AUX LOOPS',40,190,1260,290);
+  zone('RECORDING CHAIN',40,510,1260,270);
+  // sources, each dropping straight into the mixer
   const names=['Waldorf M','Digitone II','Crave','Pro-1','Pro-800','Model D','Roland S-1','Microphone'];
-  const synths=names.map((t,i)=>node(t,40+i*150,60,i===7?'#1f6feb':CR,120,44));
-  const zed=node('Allen & Heath ZED-R16',300,230,SL,640,70,{fontSize:'l',bold:true});
-  synths.forEach((s,i)=>{const cx=s.x+s.w/2;const fx=clamp((cx-zed.x)/zed.w,.03,.97);wire(s,[.5,1],zed,[fx,0],'#9aa3ad')});
-  const rooms=node('DBA Rooms',300,400,FX,140,44);
-  const adr=node('Rocktek ADR-01',500,400,FX,120,44);
-  const dds=node('Arion DDS-4',660,400,FX,120,44);
-  const z856=node('856 Zellersasn',820,400,FX,120,44);
-  const norns=node('monome norns',980,400,FX,120,44);
-  const fxAt=x=>(x-zed.x)/zed.w;
-  wire(zed,[fxAt(342),1],rooms,[.3,0],'#2fb37a','Aux 1');
-  wire(rooms,[.7,0],zed,[fxAt(398),1],'#2fb37a','Ret');
-  wire(zed,[fxAt(560),1],adr,[.5,0],'#b0305a','Aux 2');
-  wire(adr,[1,.5],dds,[0,.5],'#b0305a');
-  wire(dds,[.5,0],zed,[fxAt(720),1],'#b0305a','Ret');
-  wire(zed,[fxAt(880),1],z856,[.5,0],'#2fb37a','Aux 3');
-  wire(z856,[1,.5],norns,[0,.5],'#2fb37a');
-  wire(norns,[.5,0],zed,[1,.7],'#2fb37a','Ret');
-  const rytm=node('Analog Rytm',40,560,CR,140,56);
-  const octa=node('Octatrack',300,560,CR,160,56,{bold:true});
-  const vla=node('ART Pro VLA II',540,560,SL,150,56);
-  const evo=node('Audient EVO 16',770,560,SL,150,56);
-  const lap=node('ASUS TUF 15',1000,560,'#1f6feb',140,56);
-  const bento=node('1010 Bento',40,690,CR,140,44);
-  wire(zed,[0,.6],octa,[.7,0],'#9b6bf2','Mains → C/D',{pts:[{x:260,y:520}]});
-  wire(rytm,[1,.5],octa,[0,.5],'#9b6bf2','A/B');
-  wire(rytm,[.5,1],bento,[.5,0],'#9aa3ad','split');
-  wire(octa,[1,.5],vla,[0,.5],'#9aa3ad');
-  wire(vla,[1,.5],evo,[0,.5],'#9aa3ad','In 1/2');
-  wire(evo,[1,.5],lap,[0,.5],'#3d8bfd','USB');
-  wire(evo,[.2,0],zed,[fxAt(800),1],'#9aa3ad','return',{style:'straight'});
-  node('CABLE COLOR LEGEND',1240,50,'#14161a',260,60,{type:'legend',stroke:'#3a3f4b',align:'left',bold:true,showAll:true});
+  const src=names.map((t,i)=>node(t,170+i*140,80,i===7?MIC:SRC,120,44));
+  const zed=node('Allen & Heath ZED-R16',70,220,MIX,1200,64,{fontSize:'l',bold:true});
+  const at=x=>(x-zed.x)/zed.w;
+  src.forEach(n=>wire(n,[.5,1],zed,[at(n.x+n.w/2),0],AUD));
+  // aux loops: send down from the mixer, return back up
+  const rooms=node('DBA Rooms',100,390,FX,140,48);
+  const adr=node('Rocktek ADR-01',300,390,FX,140,48);
+  const dds=node('Arion DDS-4',480,390,FX,130,48);
+  const z856=node('856 Zellersasn',660,390,FX,140,48);
+  const norns=node('monome norns',840,390,FX,140,48);
+  const send=(dev,lab,col,fx=.3)=>wire(zed,[at(dev.x+dev.w*fx),1],dev,[fx,0],col,lab,{labelPos:.35});
+  const ret=(dev,lab,col,fx=.7)=>wire(dev,[fx,0],zed,[at(dev.x+dev.w*fx),1],col,lab,{labelPos:.65});
+  send(rooms,'Aux 1',A13);ret(rooms,'Ret',A13);
+  send(adr,'Aux 2',A24);wire(adr,[1,.5],dds,[0,.5],A24);ret(dds,'Ret',A24,.5);
+  send(z856,'Aux 3',A13);wire(z856,[1,.5],norns,[0,.5],A13);ret(norns,'Ret',A13,.5);
+  // recording chain
+  const rytm=node('Analog Rytm',80,590,SRC,140,56);
+  const octa=node('Octatrack',300,590,SRC,160,56,{bold:true});
+  const vla=node('ART Pro VLA II',540,590,MIX,150,56);
+  const evo=node('Audient EVO 16',780,590,MIX,150,56,{bold:true});
+  const lap=node('ASUS TUF 15',1040,590,MIC,140,56);
+  const bento=node('1010 Bento',80,710,SRC,140,44);
+  // the mains leave the mixer's side and route themselves around the aux row into the Octatrack
+  wire(zed,[0,.5],octa,[.5,0],OCT,'mains → C/D',{labelPos:.55});
+  wire(rytm,[1,.5],octa,[0,.5],OCT,'A/B');
+  wire(rytm,[.5,1],bento,[.5,0],AUD,'split');
+  wire(octa,[1,.5],vla,[0,.5],AUD);
+  wire(vla,[1,.5],evo,[0,.5],AUD,'in 1/2');
+  wire(evo,[1,.5],lap,[0,.5],USB,'USB');
+  wire(evo,[.5,0],zed,[at(1220),1],AUD,'laptop → mixer',{labelPos:.4});
+  // keys
+  node('CABLE COLOR LEGEND',1340,40,'#14161a',270,60,{type:'legend',stroke:'#3a3f4b',align:'left',bold:true,showAll:true});
+  node('BLOCK COLOURS',1340,330,'none',270,28,{type:'text',fontSize:'s',bold:true,align:'left'});
+  [['Sound source',SRC],['Mixer, recording',MIX],['Effect',FX],['Mic, computer',MIC]].forEach(([t,c],i)=>node(t,1340,364+i*38,c,270,30,{type:'rect',fontSize:'s',align:'left'}));
   return b;
 }
-
 function load(){
   try{const raw=localStorage.getItem(KEY);if(raw){const s=JSON.parse(raw);if(s&&Array.isArray(s.boards))store=s}}
   catch(e){storageOK=false}
@@ -1711,6 +1720,11 @@ async function openSharedFromHash(){
 }
 window.addEventListener('hashchange',()=>{if(location.hash.startsWith('#b='))openSharedFromHash()});
 
+function addExampleBoard(){
+  finishEdit();const b=seedBoard();
+  let name='Example board',i=2;while(store.boards.some(x=>x.name===name))name='Example board '+(i++);
+  b.name=name;store.boards.push(b);openBoard(b.id);toast('Added '+name+' to your boards');
+}
 /* file menu */
 const fm=$('#fileMenu'),fb=$('#fileBtn');
 function closeFileMenu(){fm.hidden=true;fb.setAttribute('aria-expanded','false')}
@@ -1720,6 +1734,7 @@ function openFileMenu(){
     <button role="menuitem" data-f="save"${off?' disabled':''}>${L?'Save now':'Save to file…'}<kbd>Ctrl S</kbd></button>
     ${fsOK?`<button role="menuitem" data-f="saveas">Save as new file…<kbd>Ctrl ⇧ S</kbd></button>`:''}
     <button role="menuitem" data-f="open">Open file…<kbd>Ctrl O</kbd></button>
+    <button role="menuitem" data-f="example">Add example board</button>
     ${L?`<button role="menuitem" data-f="unlink">Stop saving to this file</button>`:''}
     <hr><button role="menuitem" data-f="share"${off?' disabled':''}>Share link…</button>
     ${off?'<div class="fm-note">Saving to files and share links work on the Patchbay site and desktop app.</div>':(!fsOK?'<div class="fm-note">This browser downloads a board file instead of saving in place. Chrome and Edge can keep saving to the same file.</div>':'')}`;
@@ -1728,7 +1743,7 @@ function openFileMenu(){
 }
 fb.onclick=e=>{e.stopPropagation();fm.hidden?openFileMenu():closeFileMenu()};
 fm.addEventListener('click',e=>{const b=e.target.closest('[data-f]');if(!b||b.disabled)return;closeFileMenu();
-  ({save:()=>saveToFile(false),saveas:()=>saveToFile(true),open:openFromFile,unlink:()=>unlink(B.id),share:shareLink})[b.dataset.f]()});
+  ({save:()=>saveToFile(false),saveas:()=>saveToFile(true),open:openFromFile,unlink:()=>unlink(B.id),share:shareLink,example:addExampleBoard})[b.dataset.f]()});
 document.addEventListener('pointerdown',e=>{if(!fm.hidden&&!e.target.closest('#fileMenu,#fileBtn'))closeFileMenu()});
 fm.addEventListener('keydown',e=>{if(e.key==='Escape'){closeFileMenu();fb.focus()}
   if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();const bs=[...fm.querySelectorAll('button:not([disabled])')];const i=bs.indexOf(document.activeElement);bs[(i+(e.key==='ArrowDown'?1:-1)+bs.length)%bs.length].focus()}});
