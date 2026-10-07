@@ -78,6 +78,10 @@ button{cursor:pointer;background:none;border:0}
 .ib kbd{position:absolute;right:2px;bottom:1px;font-family:var(--mono);font-size:8px;opacity:.55}
 .spacer{flex:1}
 .fwrap{position:relative;flex:none}
+#tip{position:fixed;z-index:60;max-width:300px;background:#0b0c0f;color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;box-shadow:0 8px 24px rgba(0,0,0,.45);font-size:12px;line-height:1.35;display:grid;gap:5px;pointer-events:none}
+#tip b{font-weight:600;font-size:12.5px}
+#tip .tip-row{display:flex;gap:8px;align-items:baseline;color:#c3c8d2}
+#tip kbd,#tip i{flex:none;min-width:44px;font-family:var(--mono);font-style:normal;font-size:10.5px;color:var(--accent)}
 #fileMenu{position:fixed;z-index:45;min-width:250px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.5);padding:6px}
 #fileMenu button{display:flex;width:100%;align-items:center;justify-content:space-between;gap:16px;padding:8px 10px;border-radius:6px;text-align:left;font-size:13px}
 #fileMenu button:hover,#fileMenu button:focus-visible{background:var(--panel2)}
@@ -100,7 +104,7 @@ button{cursor:pointer;background:none;border:0}
 .shp{cursor:move}
 .nt{width:100%;height:100%;display:flex;align-items:center;box-sizing:border-box;padding:4px 8px;cursor:move;overflow:hidden}
 .tx{width:100%;white-space:pre-wrap;word-break:break-word;line-height:1.2;font-family:var(--ui);outline:none}
-.tx[contenteditable="true"],.tx[contenteditable="plaintext-only"]{cursor:text;user-select:text;-webkit-user-select:text;background:rgba(0,0,0,.18);border-radius:3px}
+.tx[contenteditable="true"],.tx[contenteditable="plaintext-only"]{min-height:1.2em;min-width:4px;cursor:text;user-select:text;-webkit-user-select:text;background:rgba(0,0,0,.18);border-radius:3px}
 .lg{width:100%;height:100%;box-sizing:border-box;cursor:move;font-family:var(--ui);overflow:hidden}
 .lg-title{font-weight:700;letter-spacing:.06em;margin-bottom:6px;line-height:1.3}
 .lg-row{display:flex;align-items:center;gap:10px;font-weight:600;white-space:nowrap}
@@ -849,10 +853,34 @@ function mutate(fn){const b=snap();fn();commit(b);renderAll();renderInspector()}
 
 /* ================= tools */
 function setTool(t){tool=t;svg.className.baseVal='t-'+t;renderTools();renderOverlay()}
+// Hover notes for the tools: name, key, and what the tool does
+const TOOL_TIPS={
+  select:[['V','Select and move things']],
+  hand:[['H','Pan around the board'],['Space','hold and drag, from any tool']],
+  rect:[['R','Click or drag on the canvas to place a block'],['N','Add a block at the cursor, ready to type'],['Ctrl 1','Same as N, in the desktop app']],
+  ellipse:[['O','Click or drag to place an ellipse']],
+  text:[['T','Click to place a text label']],
+  wire:[['L','Drag from one block to another'],['','Or drag a dot on any block’s edge']]
+};
+function tipHTML(id,name){return `<b>${esc(name)}</b>`+TOOL_TIPS[id].map(([k,t])=>`<span class="tip-row">${k?`<kbd>${esc(k)}</kbd>`:'<i></i>'}${esc(t)}</span>`).join('')}
 function renderTools(){
-  $('#tools').innerHTML=TOOLS.map(([id,name,k])=>`<button class="ib ${tool===id?'on':''}" data-tool="${id}" title="${name} (${k})" aria-label="${name}" aria-pressed="${tool===id}"><svg width="18" height="18" viewBox="0 0 18 18">${ICON[id]}</svg><kbd>${k}</kbd></button>`).join('');
+  $('#tools').innerHTML=TOOLS.map(([id,name,k])=>`<button class="ib ${tool===id?'on':''}" data-tool="${id}" data-tip="${id}" aria-label="${name} (${TOOL_TIPS[id].map(r=>(r[0]?r[0]+': ':'')+r[1]).join('. ')})" aria-pressed="${tool===id}"><svg width="18" height="18" viewBox="0 0 18 18">${ICON[id]}</svg><kbd>${k}</kbd></button>`).join('');
 }
 $('#tools').addEventListener('click',e=>{const b=e.target.closest('[data-tool]');if(b)setTool(b.dataset.tool)});
+const tipEl=document.createElement('div');tipEl.id='tip';tipEl.setAttribute('role','tooltip');tipEl.hidden=true;document.body.appendChild(tipEl);
+let tipT=null,tipFor=null;
+function showTip(btn){
+  const id=btn.dataset.tip,name=(TOOLS.find(t=>t[0]===id)||[])[1];if(!name)return;
+  tipEl.innerHTML=tipHTML(id,name);tipEl.hidden=false;
+  const r=btn.getBoundingClientRect(),w=tipEl.offsetWidth;
+  tipEl.style.left=Math.max(8,Math.min(r.left+r.width/2-w/2,innerWidth-w-8))+'px';tipEl.style.top=(r.bottom+8)+'px';
+}
+function hideTip(){clearTimeout(tipT);tipFor=null;tipEl.hidden=true}
+$('#tools').addEventListener('pointerover',e=>{const b=e.target.closest('[data-tip]');if(!b||b===tipFor)return;clearTimeout(tipT);tipFor=b;tipT=setTimeout(()=>showTip(b),tipEl.hidden?350:0)});
+$('#tools').addEventListener('pointerleave',hideTip);
+$('#tools').addEventListener('pointerdown',hideTip);
+$('#tools').addEventListener('focusin',e=>{const b=e.target.closest('[data-tip]');if(b&&b.matches(':focus-visible'))showTip(b)});
+$('#tools').addEventListener('focusout',hideTip);
 
 /* ================= creation */
 function makeNode(type,x,y,w,h,text=''){
@@ -872,6 +900,16 @@ svg.addEventListener('pointerdown',e=>{
   if(e.target.closest('.tx[contenteditable="true"],.tx[contenteditable="plaintext-only"]'))return;
   if(editing)finishEdit();
   if(e.button===2)return;
+  // Our own double-click detection: the browser's dblclick is unreliable here because the first click
+  // changes what's under the cursor (selection handles appear) and the canvas captures the pointer.
+  if(e.button===0&&tool==='select'&&!spaceDown){
+    const now=performance.now(),L=lastDown;
+    lastDown={t:now,x:e.clientX,y:e.clientY};
+    if(L&&now-L.t<450&&Math.hypot(e.clientX-L.x,e.clientY-L.y)<6){
+      lastDown=null;try{svg.setPointerCapture(e.pointerId)}catch(_){}
+      drag={type:'double',cx:e.clientX,cy:e.clientY,moved:false,before:null};return;
+    }
+  }
   const p=toWorld(e),ctrl=isCtrl(e);
   try{svg.setPointerCapture(e.pointerId)}catch(_){}
   const base={sx:e.clientX,sy:e.clientY,p0:p,moved:false,before:snap()};
@@ -996,6 +1034,7 @@ svg.addEventListener('pointermove',e=>{
 function endDrag(e){
   if(!drag)return;
   const d=drag;drag=null;svg.classList.remove('panning');
+  if(d.type==='double'){handleDouble(d.cx,d.cy);return}
   if(!d.moved){
     if(d.type==='create'){
       const t=tool==='text'?'text':tool==='ellipse'?'ellipse':last.nodeType;
@@ -1020,19 +1059,37 @@ svg.addEventListener('pointerup',endDrag);
 svg.addEventListener('pointercancel',endDrag);
 svg.addEventListener('pointerleave',()=>{if(!drag&&hoverNode){hoverNode=null;renderOverlay()}});
 
-svg.addEventListener('dblclick',e=>{
-  if(e.target.closest('.tx[contenteditable="true"],.tx[contenteditable="plaintext-only"]'))return;
-  const wp=e.target.closest('[data-h="wp"]');
-  if(wp){mutate(()=>{W(wp.dataset.wire).pts.splice(+wp.dataset.i,1)});return}
-  const ng=e.target.closest('[data-node]');
-  if(ng){const n=N(ng.dataset.node);sel=new Set([n.id]);renderOverlay();renderInspector();startEdit(n);return}
-  const wg=e.target.closest('[data-wire],[data-label]');
-  if(wg){const id=wg.dataset.wire||wg.dataset.label;sel=new Set([id]);insp.classList.remove('hide');renderOverlay();renderInspector();const li=$('#wLabel');if(li){li.focus();li.select()}return}
-  if(e.target.closest('[data-h]'))return;
-  const p=toWorld(e);const b=snap();
+let lastDown=null;
+// What a double-click hits: a bend (remove it), a block (edit its text) or a cable (name it).
+// Selection handles drawn over a block or cable are looked through, so they never get in the way.
+function handleDouble(cx,cy){
+  const els=document.elementsFromPoint(cx,cy).filter(el=>svg.contains(el));
+  if(!els.length)return false;
+  if(els[0].closest('.tx[contenteditable="true"],.tx[contenteditable="plaintext-only"]'))return false;
+  const wp=els[0].closest('[data-h="wp"]');
+  if(wp){mutate(()=>{W(wp.dataset.wire).pts.splice(+wp.dataset.i,1)});return true}
+  for(const el of els){
+    if(el.closest('#over'))continue;
+    const ng=el.closest('[data-node]');
+    if(ng){const n=N(ng.dataset.node);if(!n)continue;sel=new Set([n.id]);renderOverlay();renderInspector();startEdit(n);return true}
+    const wg=el.closest('[data-wire],[data-label]');
+    if(wg){const id=wg.dataset.wire||wg.dataset.label;sel=new Set([id]);insp.classList.remove('hide');renderOverlay();renderInspector();
+      const li=$('#wLabel');if(li){li.focus();li.select()}return true}
+  }
+  return false; // empty canvas: nothing. New blocks come from the Block tool (R) or N.
+}
+// New block at the cursor (or the middle of the view), ready to type into.
+let lastPointer=null;
+svg.addEventListener('pointermove',e=>{lastPointer={x:e.clientX,y:e.clientY}});
+svg.addEventListener('pointerleave',()=>{lastPointer=null});
+function addBlockHere(){
+  finishEdit();
+  const r=svg.getBoundingClientRect();
+  const c=lastPointer||{x:r.left+r.width/2,y:r.top+r.height/2};
+  const p=toWorld({clientX:c.x,clientY:c.y});const b=snap();
   const n=makeNode(last.nodeType,snapv(p.x-65),snapv(p.y-22),130,44,'');
-  sel=new Set([n.id]);renderAll();commit(b);renderInspector();startEdit(n);
-});
+  sel=new Set([n.id]);setTool('select');renderAll();commit(b);renderInspector();startEdit(n);
+}
 svg.addEventListener('contextmenu',e=>e.preventDefault());
 
 /* ================= text editing */
@@ -1098,6 +1155,7 @@ window.addEventListener('keydown',e=>{
   if(c&&k==='c'){if(sel.size){clip=collect();pasteN=0;toast('Copied')}e.preventDefault();return}
   if(c&&k==='x'){if(sel.size){clip=collect();pasteN=0;deleteSelection()}e.preventDefault();return}
   if(c&&k==='v'){if(clip){e.preventDefault();pasteN++;const b=snap();sel=new Set(pasteData(clip,20*pasteN));renderAll();commit(b);renderInspector()}return}
+  if(c&&e.key==='1'){e.preventDefault();addBlockHere();return}
   if(c&&k==='d'){e.preventDefault();const b=snap();duplicateSelection(20);commit(b);return}
   if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();deleteSelection();return}
   if(e.key==='Escape'){sel.clear();setTool('select');renderOverlay();renderInspector();return}
@@ -1112,6 +1170,7 @@ window.addEventListener('keydown',e=>{
   if(e.shiftKey&&e.code==='Digit1'){fit();return}
   if(c||e.altKey)return;
   const map={v:'select',h:'hand',r:'rect',o:'ellipse',t:'text',l:'wire',c:'wire'};
+  if(k==='n'){e.preventDefault();addBlockHere();return}
   if(map[k]){setTool(map[k]);return}
   if(k==='='||k==='+'){zoomCenter(1.2);return}
   if(k==='-'){zoomCenter(1/1.2);return}
@@ -1166,7 +1225,8 @@ function boardPanel(){
   <li><b>Ctrl + drag</b> places freely off-grid and connects to the exact spot on a block edge</li>
   <li><b>Drag ＋</b> on a selected wire to add a bend; double-click a bend to remove it</li>
   <li><b>Alt + drag</b> duplicates what you drag</li>
-  <li><b>Double-click</b> a block to edit text, empty space for a new block, a wire to name it</li>
+  <li><b>Double-click</b> a block to edit its text, or a wire to name it</li>
+  <li><b>N</b> adds a block at the cursor (Ctrl+1 in the desktop app); <b>R</b> draws one</li>
   <li><b>Space + drag</b> or middle mouse pans · <b>Ctrl + wheel</b> zooms</li>
   <li><b>Ctrl C / V / D</b> copy, paste, duplicate · <b>Ctrl Z</b> undo</li>
   <li><b>V H R O T L</b> select, pan, block, ellipse, text, wire</li>

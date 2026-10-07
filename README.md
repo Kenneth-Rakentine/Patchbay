@@ -32,8 +32,8 @@ A diagram editor for mapping hardware studio rigs: synths, mixers, aux sends and
 | Back to automatic routing | Clear bends in the cable panel |
 | Add / move / remove a bend (straight and curved cables) | Drag ＋ on a selected cable / drag the bend / double-click it |
 | Duplicate while dragging | Alt + drag |
-| Edit text | Double-click a block (Ctrl+Enter or Esc to finish) |
-| New block | Double-click empty space, or the Block tool (R) |
+| Edit text | Double-click a block: its text is selected, or the cursor waits in an empty block (Ctrl+Enter or Esc to finish) |
+| New block | N adds one at the cursor (Ctrl+1 in the desktop app), or click or drag with the Block tool (R) |
 | Name a cable | Double-click the cable |
 | Pan / zoom | Space + drag or middle mouse / Ctrl + scroll wheel |
 | Copy, paste, duplicate | Ctrl+C, Ctrl+V, Ctrl+D |
